@@ -39,7 +39,7 @@ const host = {
       conn.on("data", msg => this.receive(msg, conn));
       conn.on("close", () => { for (const [n, c] of this.conns) if (c === conn) this.conns.delete(n); render(); });
     });
-    peer.on("disconnected", () => { if (!peer.destroyed) setTimeout(() => peer.reconnect(), 1500); });
+    peer.on("disconnected", () => setTimeout(() => { if (!peer.destroyed && peer.disconnected) try { peer.reconnect(); } catch (e) {} }, 1500));
     peer.on("error", e => {
       if (e.type === "unavailable-id") {
         peer.destroy();
@@ -64,6 +64,11 @@ const host = {
       const finalName = existing || name;
       if (!existing) this.seats.push(finalName);
       const old = this.conns.get(finalName);
+      if (finalName === this.me || (old && old !== conn && old.open && conn.peer !== old.peer && !msg.reclaim)) {
+        this.send(conn, { t: "err", msg: `Someone called ${finalName} is already in this room. Pick a different name.` });
+        if (!existing) this.seats.pop();
+        return;
+      }
       if (old && old !== conn) try { old.close(); } catch (e) {}
       this.conns.set(finalName, conn);
       conn.gekkoName = finalName;
@@ -192,12 +197,13 @@ const guest = {
   active: false, peer: null, conn: null, code: "", name: "", retry: null,
 
   start(code, name) {
+    if (typeof RTCPeerConnection === "undefined") { ui.status = "nowebrtc"; render(); return; }
     this.active = true; this.code = code; this.name = name;
     lsSet("gekko-last", JSON.stringify({ code, name }));
     ui.status = "opening"; render();
     this.peer = new Peer();
     this.peer.on("open", () => this.connect());
-    this.peer.on("disconnected", () => { if (!this.peer.destroyed) setTimeout(() => this.peer.reconnect(), 1500); });
+    this.peer.on("disconnected", () => setTimeout(() => { const p = this.peer; if (!p.destroyed && p.disconnected) try { p.reconnect(); } catch (e) {} }, 1500));
     this.peer.on("error", e => {
       if (e.type === "peer-unavailable") {
         ui.status = ui.view ? "lost" : "noroom";
@@ -214,9 +220,12 @@ const guest = {
     if (this.conn) try { this.conn.close(); } catch (e) {}
     const conn = this.peer.connect(PEER_PREFIX + this.code, { reliable: true });
     this.conn = conn;
-    conn.on("open", () => conn.send({ t: "join", name: this.name }));
+    conn.on("open", () => { clearTimeout(this.stuck); conn.send({ t: "join", name: this.name, reclaim: this.joined || lsGet("gekko-joined-" + this.code) === this.name }); });
+    // A phone that finds the room but never connects is usually blocked by its network or browser.
+    clearTimeout(this.stuck);
+    this.stuck = setTimeout(() => { if (!conn.open && !ui.view) { ui.status = "stuck"; render(); } }, 15000);
     conn.on("data", msg => {
-      if (msg.t === "welcome") { this.name = msg.name; ui.status = "live"; ui.err = ""; render(); }
+      if (msg.t === "welcome") { this.name = msg.name; this.joined = true; lsSet("gekko-joined-" + this.code, msg.name); ui.status = "live"; ui.err = ""; render(); }
       else if (msg.t === "view") { ui.view = msg.view; ui.status = "live"; render(); }
       else if (msg.t === "err") { ui.err = msg.msg; ui.status = "rejected"; render(); }
     });
@@ -245,7 +254,7 @@ function head(step) {
   return `<header><div class="logo"><i></i>Gekko</div><div class="step">${esc(step || "")}</div></header>
     ${v ? `<div class="me"><span>Playing as <b>${esc(v.me)}</b> in room <b class="mono">${esc(v.code)}</b></span><button class="link" data-act="quit">Leave</button></div>` : ""}
     ${ui.status === "lost" ? `<div class="banner">Connection dropped. Reconnecting…</div>` : ""}
-    ${ui.err ? `<div class="banner bad">${esc(ui.err)}</div>` : ""}`;
+    ${ui.err && ui.status !== "rejected" ? `<div class="banner bad">${esc(ui.err)}</div>` : ""}`;
 }
 
 const views = {
@@ -278,6 +287,29 @@ const views = {
 
   opening() {
     return head("") + `<section class="card center"><div class="spinner"></div><p class="muted">${host.active ? "Opening your room…" : `Finding room ${esc(guest.code)}…`}</p><button class="btn ghost slim" data-act="quit">Cancel</button></section>`;
+  },
+
+  stuck() {
+    return head("") + `<section class="card">
+      <h2>Your phone can't reach room ${esc(guest.code)}</h2>
+      <p class="muted">The room exists, but this phone can't connect to the host's phone. It's still trying in the background. Usually one of these fixes it:</p>
+      <ul class="rules">
+        <li>Switch networks: turn Wi-Fi off to use mobile data, or the other way around.</li>
+        <li>If you opened the link from Instagram, Snapchat, Messenger or another app, open it in Safari or Chrome instead.</li>
+        <li>On iPhone, turn off Lockdown Mode, and any VPN or ad blocker.</li>
+        <li>Update the phone's browser if it's old.</li>
+      </ul>
+      <button class="btn" data-act="retry">Try again</button>
+      <button class="btn ghost" data-act="quit">Back</button>
+    </section>`;
+  },
+
+  nowebrtc() {
+    return head("") + `<section class="card">
+      <h2>This browser can't join games</h2>
+      <p class="muted">Gekko needs direct phone-to-phone connections, and this browser has them turned off. Open the page in Safari or Chrome. On iPhone, Lockdown Mode also blocks this.</p>
+      <button class="btn ghost" data-act="quit">Back</button>
+    </section>`;
   },
 
   noroom() {
@@ -445,6 +477,8 @@ function savedHost() { try { const s = JSON.parse(lsGet("gekko-host")); return s
 function currentView() {
   if (ui.status === "home") return "home";
   if (ui.status === "rejected") return "rejected";
+  if (ui.status === "nowebrtc") return "nowebrtc";
+  if (ui.status === "stuck" && !ui.view) return "stuck";
   if (ui.status === "noroom" && !ui.view) return "noroom";
   if (!ui.view) return "opening";
   const v = ui.view;
@@ -495,6 +529,7 @@ const actions = {
     if (location.hash !== "#" + code) history.replaceState(null, "", "#" + code);
     guest.start(code, n);
   },
+  retry() { ui.status = "opening"; render(); guest.connect(); },
   rejoin() { if (guest.active) guest.connect(); else location.reload(); },
   quit() {
     if (guest.active && ui.view) guest.send({ type: "leave" });
