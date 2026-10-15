@@ -476,6 +476,7 @@ const views = {
   discuss() {
     return head("Discuss") + `<section class="card"><h2>Who sounded suspicious?</h2>
       <p class="muted">Talk it over as long as you like. When you're ready, start the vote. Everyone votes on their own phone, except the Gecko.</p></section>
+      ${recap(ui.view, true)}
       <button class="btn" data-act="tovote">Start the vote</button>
       <button class="btn ghost slim" data-act="back">Back to the last question</button>${peek(ui.view)}`;
   },
@@ -496,6 +497,7 @@ const views = {
         <div class="grid">${v.players.map((p, k) => k === v.myIdx ? "" : `<button class="pick ${mine === k ? "chosen" : ""}" data-act="${v.isOut ? "fakevote" : "vote"}" data-i="${k}">${esc(p)}</button>`).join("")}</div>
       </section>
       <p class="muted small center-text">${v.nVoted} of ${n - 1} votes in. The Gecko doesn't vote.</p>
+      ${recap(v, false)}
       ${!v.nVoted && !second ? `<button class="btn ghost slim" data-act="back">Back to the discussion</button>` : ""}
       ${host.active && v.nVoted ? `<button class="btn ghost slim" data-act="closevote">Someone dropped out? Count the votes now</button>` : ""}`;
   },
@@ -532,6 +534,7 @@ const views = {
         <div class="label">First vote</div>
         <ul class="tally">${v.players.map((p, k) => k).sort((a, b) => v.firstCounts[b] - v.firstCounts[a]).map(k => `<li class="${v.accused.includes(k) ? "top" : ""}"><span>${esc(v.players[k])}</span><span class="bar"><div style="width:${(v.firstCounts[k] / Math.max(1, ...v.firstCounts)) * 100}%"></div></span><b>${v.firstCounts[k]}</b></li>`).join("")}</ul>
       </section>
+      ${recap(v, false)}
       ${mine || host.active
         ? `<button class="btn" data-act="revote">${mine ? "I'm done. Vote again" : "Start the revote"}</button>`
         : `<p class="muted small center-text">The revote starts when ${list} ${names.length > 1 ? "are" : "is"} done.</p>`}`;
@@ -576,6 +579,13 @@ const cardRing = v => v.isOut
   ? `<div class="ring out">${GECKO_ICON}<div><div class="word">You are the Gecko</div><div class="sub">Category: ${esc(v.rcat)}</div></div></div>`
   : `<div class="ring"><div><div class="word">${esc(v.word)}</div><div class="sub">Category: ${esc(v.rcat)}</div></div></div>`;
 const peek = v => `<details class="peek"><summary>Peek at my card</summary><p>${v.isOut ? `You're <b>the Gecko</b>. Category: ${esc(v.rcat)}.` : `The word is <b>${esc(v.word)}</b>.`}</p></details>`;
+// Every question from this round and who answered it, so people can remember during the discussion.
+const recap = (v, open) => {
+  const rows = v.questions.map(q => `<li><span class="who ${q.b === v.myIdx ? "mine" : ""}">${esc(v.players[q.b])}</span><div><p>${esc(q.q)}</p><small class="muted">asked by ${esc(v.players[q.a])}</small></div></li>`).join("");
+  return open
+    ? `<section class="card"><div class="label">Who answered what</div><ol class="recap">${rows}</ol></section>`
+    : `<details class="card recap-box"><summary class="label">Who answered what (${v.questions.length} questions)</summary><ol class="recap">${rows}</ol></details>`;
+};
 const rulesCard = () => `<section class="card"><div class="label">Scoring</div><ul class="rules">
   <li><b>+1</b> to each player who votes for the Gecko.</li>
   <li><b>+2</b> to the Gecko if the vote doesn't land on them (ties count as an escape).</li>
