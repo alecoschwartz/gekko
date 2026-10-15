@@ -111,6 +111,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { background: var(--shadow); border: 2px solid var(--line); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: .92rem; color: var(--muted); transition: transform .08s; }
 .chip:active { transform: scale(.95); }
+.chip:disabled { cursor: default; opacity: .55; }
+.chip:disabled:active { transform: none; }
+.chip:disabled[aria-pressed="true"] { opacity: 1; }
 .chip[aria-pressed="true"] { background: var(--hot); color: var(--hot-ink); border-color: var(--hot); }
 .rules { font-size: .92rem; color: var(--muted); display: grid; gap: 6px; padding-left: 1.1em; margin: 0; }
 .rules b { color: var(--ink); }

@@ -118,9 +118,10 @@ const host = {
     switch (a.type) {
       case "kick": this.seats = this.seats.filter(s => s !== a.name || s === this.me); break;
       case "leave": if (G.phase === "lobby" && who !== this.me) this.seats = this.seats.filter(s => s !== who); break;
-      case "cat": { const c = G.cats || []; if (!BANK[a.cat]) return; G.cats = c.includes(a.cat) ? c.filter(x => x !== a.cat) : [...c, a.cat]; break; }
-      case "allcats": G.cats = []; break;
-      case "qper": if ([1, 2, 3].includes(a.n)) G.qPer = a.n; break;
+      case "cat": {
+        if (who !== this.me) return; const c = G.cats || []; if (!BANK[a.cat]) return; G.cats = c.includes(a.cat) ? c.filter(x => x !== a.cat) : [...c, a.cat]; break; }
+      case "allcats": if (who !== this.me) return; G.cats = []; break;
+      case "qper": if (who !== this.me || ![1, 2, 3].includes(a.n)) return; G.qPer = a.n; break;
       case "resetscores": G.scores = {}; G.usedQs = {}; break;
       case "start": {
         if (this.seats.length < 3) return;
@@ -382,7 +383,7 @@ const views = {
 
   lobby() {
     const v = ui.view, sel = v.cats, anyScore = v.seats.some(s => v.scores[s]), enough = v.seats.length >= 3;
-    const isHost = host.active;
+    const isHost = host.active, lock = isHost ? "" : "disabled";
     return head("Lobby") + `
     <section class="card center">
       <div class="label">Room code</div>
@@ -398,10 +399,10 @@ const views = {
     </section>
     <section class="card">
       <div class="row-between"><div class="label">Categories</div><span class="muted small">${sel.length ? `${sel.length} picked` : "All in the mix"}</span></div>
-      <div class="chips"><button class="chip" data-act="allcats" aria-pressed="${!sel.length}">Everything</button>${CATS.map(c => `<button class="chip" data-act="cat" data-v="${esc(c)}" aria-pressed="${sel.includes(c)}">${esc(c)}</button>`).join("")}</div>
-      <p class="muted small">Pick one or more. Each round draws a word from one of them at random.</p>
+      <div class="chips"><button class="chip" data-act="allcats" ${lock} aria-pressed="${!sel.length}">Everything</button>${CATS.map(c => `<button class="chip" data-act="cat" data-v="${esc(c)}" ${lock} aria-pressed="${sel.includes(c)}">${esc(c)}</button>`).join("")}</div>
+      <p class="muted small">${isHost ? "Pick one or more. Each round draws a word from one of them at random." : `${esc(v.hostName)} picks the categories and questions.`}</p>
       <div class="label">Questions per player</div>
-      <div class="chips">${[1, 2, 3].map(q => `<button class="chip" data-act="qper" data-v="${q}" aria-pressed="${v.qPer === q}">${q}</button>`).join("")}</div>
+      <div class="chips">${[1, 2, 3].map(q => `<button class="chip" data-act="qper" data-v="${q}" ${lock} aria-pressed="${v.qPer === q}">${q}</button>`).join("")}</div>
     </section>
     <button class="btn" data-act="start" ${enough ? "" : "disabled"}>Deal the cards</button>
     ${rulesCard()}`;
