@@ -131,7 +131,12 @@ const host = {
         this.votes = {};
         break;
       }
-      case "toquestions": if (G.phase === "cards") { G.phase = "questions"; G.qi = 0; } break;
+      case "ready":
+        if (G.phase !== "cards" || idx < 0) return;
+        G.ready = [...new Set([...(G.ready || []), idx])];
+        if (G.ready.length >= G.players.length) { G.phase = "questions"; G.qi = 0; }
+        break;
+      case "startanyway": if (G.phase === "cards" && who === this.me) { G.phase = "questions"; G.qi = 0; } break;
       case "nextq":
         if (G.phase !== "questions" || a.qi !== G.qi) return;
         if (who !== this.me && idx !== G.questions[G.qi].a) return;
@@ -151,18 +156,30 @@ const host = {
       case "back":
         // a.phase/a.qi say what the sender was looking at, so two people tapping Back only go back one step.
         if (a.phase !== G.phase || (G.phase === "questions" && a.qi !== G.qi)) return;
-        if (G.phase === "questions") { if (G.qi > 0) G.qi--; else G.phase = "cards"; }
+        if (G.phase === "questions") { if (G.qi > 0) G.qi--; else { G.phase = "cards"; G.ready = []; } }
         else if (G.phase === "discuss") { G.phase = "questions"; G.qi = G.questions.length - 1; }
-        else if (G.phase === "vote" && !Object.keys(this.votes).length) G.phase = "discuss";
+        else if (G.phase === "vote" && G.voteRound !== 2 && !Object.keys(this.votes).length) G.phase = "discuss";
         else return;
         break;
       case "tovote": if (G.phase === "discuss") G.phase = "vote"; break;
       case "vote":
-        if (G.phase !== "vote" || idx < 0 || a.target === idx || !(a.target >= 0 && a.target < G.players.length)) return;
+        if (G.phase !== "vote" || idx < 0 || idx === G.out || a.target === idx || !(a.target >= 0 && a.target < G.players.length)) return;
         this.votes[idx] = a.target;
         break;
       case "closevote": if (G.phase === "vote" && who === this.me && Object.keys(this.votes).length > 0) G.votingClosed = true; break;
-      case "reveal": if (G.phase === "vote" && (G.votingClosed || Object.keys(this.votes).length >= G.players.length)) G.phase = "reveal"; break;
+      // First vote -> the most-voted player(s) defend themselves -> revote -> reveal.
+      case "todefense": {
+        if (G.phase !== "vote" || G.voteRound === 2 || !(G.votingClosed || Object.keys(this.votes).length >= G.players.length - 1)) return;
+        const t = tallyOf(this.votes, G);
+        Object.assign(G, { phase: "defense", accused: t.tops, firstCounts: t.counts });
+        break;
+      }
+      case "revote":
+        if (G.phase !== "defense" || (who !== this.me && !G.accused.includes(idx))) return;
+        this.votes = {};
+        Object.assign(G, { phase: "vote", voteRound: 2, votingClosed: false });
+        break;
+      case "reveal": if (G.phase === "vote" && G.voteRound === 2 && (G.votingClosed || Object.keys(this.votes).length >= G.players.length - 1)) G.phase = "reveal"; break;
       case "guess": {
         if (G.phase !== "reveal" || idx !== G.out || !G.options.includes(a.word)) return;
         const t = tallyOf(this.votes, G), d = G.players.map(() => 0), why = G.players.map(() => []);
@@ -192,12 +209,12 @@ const host = {
   viewFor(name) {
     const G = this.G, idx = G.players.indexOf(name), inRound = idx >= 0;
     const late = ["reveal", "results"].includes(G.phase);
-    const nVotes = Object.keys(this.votes).length, allVoted = G.players.length > 0 && (nVotes >= G.players.length || !!G.votingClosed);
+    const nVotes = Object.keys(this.votes).length, allVoted = G.players.length > 0 && (nVotes >= G.players.length - 1 || !!G.votingClosed);
     const v = {
       code: this.code, hostName: this.me, me: name, seats: this.seats.slice(), online: this.onlineNames(),
       phase: G.phase, gid: G.gid, players: G.players, scores: G.scores, cats: G.cats || [], qPer: G.qPer,
       myIdx: idx, rcat: G.rcat, questions: G.questions, qi: G.qi,
-      voted: Object.keys(this.votes).map(Number), myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
+      nVoted: nVotes, ready: G.ready || [], voteRound: G.voteRound || 1, accused: G.accused, firstCounts: G.firstCounts, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
     };
     if (inRound && G.phase !== "lobby") {
       v.isOut = idx === G.out;
@@ -422,8 +439,17 @@ const views = {
       : `<section class="card center"><div class="label">${esc(v.me)}, your card</div>${cardRing(v)}
            <p class="muted">${v.isOut ? "Everyone else knows the word. Blend in like a gecko on a wall, listen closely, and work out what it is." : "You know the word. Answer so the others can tell, but keep it vague enough that the Gecko can't guess it."}</p></section>
          <button class="btn ghost" data-act="hide">Hide my card</button>`;
-    return head("Your card") + card + `<section class="card"><p class="muted small">When everyone has seen their card, anyone can start the questions.</p>
-      <button class="btn" data-act="toquestions">Everyone's ready. Start questions</button></section>`;
+    const imReady = v.ready.includes(v.myIdx), n = v.players.length;
+    const notReady = v.players.filter((p, k) => !v.ready.includes(k));
+    return head("Your card") + card + `<section class="card">
+      <div class="row-between"><div class="label">Ready</div><span class="muted small">${v.ready.length} of ${n}</span></div>
+      <div class="progress"><div style="width:${(v.ready.length / n) * 100}%"></div></div>
+      ${imReady
+        ? `<p class="muted small">You're ready. Waiting for ${notReady.map(esc).join(", ")}.</p>`
+        : `<p class="muted small">Seen your card? Tap ready. Questions start when everyone is.</p>
+           <button class="btn" data-act="ready">I'm ready</button>`}
+      ${host.active && notReady.length && notReady.length < n ? `<button class="btn ghost slim" data-act="startanyway">Someone's phone stuck? Start anyway</button>` : ""}
+    </section>`;
   },
 
   questions() {
@@ -449,7 +475,7 @@ const views = {
 
   discuss() {
     return head("Discuss") + `<section class="card"><h2>Who sounded suspicious?</h2>
-      <p class="muted">Talk it over as long as you like. When you're ready, start the vote. Everyone votes on their own phone, the Gecko too.</p></section>
+      <p class="muted">Talk it over as long as you like. When you're ready, start the vote. Everyone votes on their own phone, except the Gecko.</p></section>
       <button class="btn" data-act="tovote">Start the vote</button>
       <button class="btn ghost slim" data-act="back">Back to the last question</button>${peek(ui.view)}`;
   },
@@ -457,17 +483,21 @@ const views = {
   vote() {
     const v = ui.view, n = v.players.length;
     if (v.counts) return views.tally();
-    const waiting = v.players.filter((p, k) => !v.voted.includes(k));
-    const mine = v.myVote;
-    return head(`Votes in: ${v.voted.length} of ${n}`) + `
+    // The Gecko doesn't vote, but gets a screen that looks the same so nobody can tell by glancing at it.
+    const mine = v.isOut ? ui.fakeVote : v.myVote;
+    const second = v.voteRound === 2;
+    return head(`${second ? "Revote" : "Vote"}: ${v.nVoted} of ${n - 1} in`) + `
       <section class="card">
+        ${second ? `<div class="label">Revote · final answer</div>` : ""}
         <h2>${mine != null ? "Vote locked in" : "Who's the Gecko?"}</h2>
-        <p class="muted">${mine != null ? `You voted for <b>${esc(v.players[mine])}</b>. You can change it until everyone has voted.` : "Your vote stays secret until everyone has voted."}</p>
-        <div class="grid">${v.players.map((p, k) => k === v.myIdx ? "" : `<button class="pick ${mine === k ? "chosen" : ""}" data-act="vote" data-i="${k}">${esc(p)}</button>`).join("")}</div>
+        <p class="muted">${v.isOut
+          ? "You're the Gecko, so your vote doesn't count. Tap someone anyway so you look busy."
+          : mine != null ? `You voted for <b>${esc(v.players[mine])}</b>. You can change it until everyone has voted.` : "Your vote stays secret until everyone has voted."}</p>
+        <div class="grid">${v.players.map((p, k) => k === v.myIdx ? "" : `<button class="pick ${mine === k ? "chosen" : ""}" data-act="${v.isOut ? "fakevote" : "vote"}" data-i="${k}">${esc(p)}</button>`).join("")}</div>
       </section>
-      <p class="muted small center-text">Still voting: ${waiting.map(esc).join(", ")}</p>
-      ${!v.voted.length ? `<button class="btn ghost slim" data-act="back">Back to the discussion</button>` : ""}
-      ${host.active && v.voted.length ? `<button class="btn ghost slim" data-act="closevote">Someone dropped out? Count the votes now</button>` : ""}`;
+      <p class="muted small center-text">${v.nVoted} of ${n - 1} votes in. The Gecko doesn't vote.</p>
+      ${!v.nVoted && !second ? `<button class="btn ghost slim" data-act="back">Back to the discussion</button>` : ""}
+      ${host.active && v.nVoted ? `<button class="btn ghost slim" data-act="closevote">Someone dropped out? Count the votes now</button>` : ""}`;
   },
 
   tally() {
@@ -475,13 +505,36 @@ const views = {
     const tops = v.counts.map((c, k) => c === top ? k : -1).filter(k => k >= 0);
     const order = v.players.map((p, k) => k).sort((a, b) => v.counts[b] - v.counts[a]);
     const accused = tops.length === 1 ? v.players[tops[0]] : null;
-    return head("The vote") + `
+    const first = v.voteRound !== 2;
+    return head(first ? "First vote" : "Final vote") + `
       <section class="card">
-        <h2>${accused ? `The group points at ${esc(accused)}` : "It's a tie"}</h2>
+        <h2>${accused ? `The group points at ${esc(accused)}` : `It's a tie between ${tops.map(k => esc(v.players[k])).join(" and ")}`}</h2>
         <ul class="tally">${order.map(k => `<li class="${tops.includes(k) ? "top" : ""}"><span>${esc(v.players[k])}</span><span class="bar"><div style="width:${(v.counts[k] / max) * 100}%"></div></span><b>${v.counts[k]}</b></li>`).join("")}</ul>
-        ${accused ? "" : `<p class="muted">Nobody got a clear majority, so the Gecko slips away.</p>`}
+        ${first
+          ? `<p class="muted">${accused ? `${esc(accused)} gets a chance to defend themselves, then everyone votes again.` : "Everyone tied gets a chance to defend themselves, then everyone votes again."}</p>`
+          : accused ? "" : `<p class="muted">Still no clear winner, so the Gecko slips away.</p>`}
       </section>
-      <button class="btn" data-act="reveal">Reveal the Gecko</button>`;
+      ${first ? `<button class="btn" data-act="todefense">${accused ? `Hear ${esc(accused)}'s defense` : "Hear their defense"}</button>` : `<button class="btn" data-act="reveal">Reveal the Gecko</button>`}`;
+  },
+
+  defense() {
+    const v = ui.view, names = v.accused.map(k => v.players[k]), mine = v.accused.includes(v.myIdx);
+    const list = names.map(esc).join(" and ");
+    return head("The defense") + `
+      <section class="card center spot">
+        <div class="label">On trial</div>
+        <div class="big-name">${list}</div>
+        <p>${mine
+          ? names.length > 1 ? "You're tied for the most votes. Make your case out loud. Why aren't you the Gecko?" : "The group thinks you're the Gecko. Make your case out loud. Why aren't you?"
+          : `Listen to ${list} make their case. Ask them anything.`}</p>
+      </section>
+      <section class="card">
+        <div class="label">First vote</div>
+        <ul class="tally">${v.players.map((p, k) => k).sort((a, b) => v.firstCounts[b] - v.firstCounts[a]).map(k => `<li class="${v.accused.includes(k) ? "top" : ""}"><span>${esc(v.players[k])}</span><span class="bar"><div style="width:${(v.firstCounts[k] / Math.max(1, ...v.firstCounts)) * 100}%"></div></span><b>${v.firstCounts[k]}</b></li>`).join("")}</ul>
+      </section>
+      ${mine || host.active
+        ? `<button class="btn" data-act="revote">${mine ? "I'm done. Vote again" : "Start the revote"}</button>`
+        : `<p class="muted small center-text">The revote starts when ${list} ${names.length > 1 ? "are" : "is"} done.</p>`}`;
   },
 
   reveal() {
@@ -526,7 +579,8 @@ const peek = v => `<details class="peek"><summary>Peek at my card</summary><p>${
 const rulesCard = () => `<section class="card"><div class="label">Scoring</div><ul class="rules">
   <li><b>+1</b> to each player who votes for the Gecko.</li>
   <li><b>+2</b> to the Gecko if the vote doesn't land on them (ties count as an escape).</li>
-  <li><b>+2</b> more to the Gecko for guessing the word at the end.</li></ul></section>`;
+  <li><b>+2</b> more to the Gecko for guessing the word at the end.</li></ul>
+  <p class="muted small">After the first vote, whoever got the most votes defends themselves, then everyone votes again. Only the revote counts. The Gecko doesn't vote.</p></section>`;
 function isCaught(v) {
   const top = Math.max(...v.counts), tops = v.counts.map((c, k) => c === top ? k : -1).filter(k => k >= 0);
   return tops.length === 1 && tops[0] === v.out;
@@ -551,9 +605,10 @@ function currentView() {
 const app = document.getElementById("app");
 function render() {
   const view = currentView(), v = ui.view;
-  const key = view + "|" + (v ? v.gid : "");
+  const key = view + "|" + (v ? v.gid : "") + "|" + (v ? v.voteRound : "");
   if (key !== ui.lastKey) {
     if (v && ui.lastKey.split("|")[1] !== v.gid) ui.shown = false;
+    ui.fakeVote = null;
     ui.lastKey = key;
     window.scrollTo(0, 0);
   }
@@ -611,12 +666,16 @@ const actions = {
   qper: el => act({ type: "qper", n: +el.dataset.v }),
   resetscores: () => act({ type: "resetscores" }),
   start: () => act({ type: "start" }),
-  toquestions: () => act({ type: "toquestions" }),
+  ready: () => act({ type: "ready" }),
+  startanyway: () => act({ type: "startanyway" }),
+  todefense: () => act({ type: "todefense" }),
+  revote: () => act({ type: "revote" }),
   nextq: () => act({ type: "nextq", qi: ui.view.qi }),
   back: () => act({ type: "back", phase: ui.view.phase, qi: ui.view.qi }),
   swapq: () => act({ type: "swapq", qi: ui.view.qi }),
   tovote: () => act({ type: "tovote" }),
   vote: el => act({ type: "vote", target: +el.dataset.i }),
+  fakevote(el) { ui.fakeVote = +el.dataset.i; render(); },
   reveal: () => act({ type: "reveal" }),
   closevote: () => act({ type: "closevote" }),
   guess: el => act({ type: "guess", word: el.dataset.v }),
