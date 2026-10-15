@@ -5,6 +5,8 @@
 const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
+// Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
+const VERSION = "2026-10-15e";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1 };
 
@@ -60,16 +62,23 @@ const host = {
     this.client.subscribe(topic(this.code, "up"), { qos: 1 });
     this.beat();
     clearInterval(this.beatTimer);
-    this.beatTimer = setInterval(() => { this.beat(); this.checkOnline(); }, 10000);
+    this.client.subscribe(topic(this.code, "host"), { qos: 0 });
+    this.beatTimer = setInterval(() => { this.beat(); this.checkOnline(); this.resend(); }, 10000);
     ui.status = "live"; this.save(); this.broadcast();
   },
 
-  beat() { if (this.client.connected) this.client.publish(topic(this.code, "host"), JSON.stringify({ t: Date.now() }), { qos: 0, retain: true }); },
+  hid: rid(), startedAt: Date.now(),
+  beat() { if (this.client.connected) this.client.publish(topic(this.code, "host"), JSON.stringify({ t: Date.now(), hid: this.hid }), { qos: 0, retain: true }); },
 
   close() { if (this.client && this.client.connected) this.client.publish(topic(this.code, "host"), "", { qos: 1, retain: true }); },
 
   onMessage(t, m) {
     if (this.probe && t === this.probe.topic) { const d = parse(m); if (d && Date.now() - d.t < 60000) this.probe.taken = true; return; }
+    if (t === topic(this.code, "host")) {
+      const d = parse(m);
+      if (d && d.hid && d.hid !== this.hid && d.t > this.startedAt) { ui.err = `Room ${this.code} is also open on another phone or tab. Close the extra one, or the game will split in two.`; render(); }
+      return;
+    }
     if (t !== topic(this.code, "up")) return;
     const msg = parse(m);
     if (msg && typeof msg === "object" && typeof msg.from === "string") this.receive(msg, msg.from);
@@ -92,6 +101,7 @@ const host = {
     if (known) known.seen = Date.now();
     if (msg.t === "ping") { if (!known) this.sendTo(cid, { t: "rejoin" }); return; }
     if (msg.t === "join") {
+      if (msg.ver !== VERSION) { this.sendTo(cid, { t: "err", reload: true, msg: "Your copy of Gecko is out of date. Reload the page to join." }); return; }
       const name = String(msg.name || "").trim().slice(0, 20);
       if (!name) return;
       const existing = this.seats.find(s => s.toLowerCase() === name.toLowerCase());
@@ -198,6 +208,11 @@ const host = {
 
   changed() { this.save(); this.broadcast(); },
 
+  resend() {
+    const now = Date.now();
+    for (const [cid, c] of this.clients) if (now - c.seen < ONLINE_MS) this.sendTo(cid, { t: "view", view: this.viewFor(c.name) });
+  },
+
   broadcast() {
     const now = Date.now();
     for (const [cid, c] of this.clients) if (now - c.seen < 10 * 60000) this.sendTo(cid, { t: "view", view: this.viewFor(c.name) });
@@ -211,7 +226,7 @@ const host = {
     const late = ["reveal", "results"].includes(G.phase);
     const nVotes = Object.keys(this.votes).length, allVoted = G.players.length > 0 && (nVotes >= G.players.length - 1 || !!G.votingClosed);
     const v = {
-      code: this.code, hostName: this.me, me: name, seats: this.seats.slice(), online: this.onlineNames(),
+      ver: VERSION, code: this.code, hostName: this.me, me: name, seats: this.seats.slice(), online: this.onlineNames(),
       phase: G.phase, gid: G.gid, players: G.players, scores: G.scores, cats: G.cats || [], qPer: G.qPer,
       myIdx: idx, rcat: G.rcat, questions: G.questions, qi: G.qi,
       nVoted: nVotes, ready: G.ready || [], voteRound: G.voteRound || 1, accused: G.accused, firstCounts: G.firstCounts, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
@@ -297,7 +312,7 @@ const guest = {
   // Keep asking to join until the host answers.
   join() {
     this.welcomed = false;
-    this.publish({ t: "join", name: this.name, reclaim: this.joined || lsGet("gekko-joined-" + this.code) === this.name });
+    this.publish({ t: "join", ver: VERSION, name: this.name, reclaim: this.joined || lsGet("gekko-joined-" + this.code) === this.name });
     clearTimeout(this.joinTimer);
     this.joinTimer = setTimeout(() => {
       if (this.welcomed || ui.status === "rejected") return;
@@ -308,8 +323,11 @@ const guest = {
 
   onMsg(msg) {
     if (msg.t === "welcome") { this.name = msg.name; this.joined = this.welcomed = true; lsSet("gekko-joined-" + this.code, msg.name); ui.status = "live"; ui.err = ""; render(); }
-    else if (msg.t === "view") { this.welcomed = true; ui.view = msg.view; ui.status = "live"; render(); }
-    else if (msg.t === "err") { clearTimeout(this.joinTimer); ui.err = msg.msg; ui.status = "rejected"; render(); }
+    else if (msg.t === "view") {
+      if (msg.view.ver !== VERSION) { ui.status = "outdated"; ui.view = null; render(); return; }
+      this.welcomed = true; ui.view = msg.view; ui.status = "live"; render();
+    }
+    else if (msg.t === "err") { clearTimeout(this.joinTimer); ui.err = msg.msg; ui.status = msg.reload ? "outdated" : "rejected"; render(); }
     else if (msg.t === "rejoin") this.join();
   },
 
@@ -332,7 +350,7 @@ function head(step) {
   return `<header><div class="logo"><svg class="gecko-mark" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M32 40 C32 50 22 56 16 50 C12 46 16 41 20 44"/><path d="M26 24 L16 18 M38 24 L48 18 M27 36 L17 42 M37 36 L47 42"/></g><g fill="currentColor"><circle cx="16" cy="18" r="3.5"/><circle cx="48" cy="18" r="3.5"/><circle cx="17" cy="42" r="3.5"/><circle cx="47" cy="42" r="3.5"/><ellipse cx="32" cy="29" rx="7.5" ry="12"/><ellipse cx="32" cy="12" rx="7" ry="6.5"/></g><g fill="var(--spot)"><circle cx="29.5" cy="11" r="1.6"/><circle cx="34.5" cy="11" r="1.6"/><circle cx="30" cy="26" r="1.8"/><circle cx="34" cy="32" r="1.8"/></g></svg><span>Gecko</span></div><div class="step">${esc(step || "")}</div></header>
     ${v ? `<div class="me"><span>Playing as <b>${esc(v.me)}</b> in room <b class="mono">${esc(v.code)}</b></span><button class="link" data-act="quit">Leave</button></div>` : ""}
     ${ui.status === "lost" ? `<div class="banner">Connection dropped. Reconnecting…</div>` : ""}
-    ${ui.err && ui.status !== "rejected" ? `<div class="banner bad">${esc(ui.err)}</div>` : ""}`;
+    ${ui.err && ui.status !== "rejected" && ui.status !== "outdated" ? `<div class="banner bad">${esc(ui.err)}</div>` : ""}`;
 }
 
 const views = {
@@ -386,6 +404,14 @@ const views = {
       <h2>Can't find room ${esc(guest.code)}</h2>
       <p class="muted">Check the code with the host. Their phone needs to have Gecko open. Still trying in the background…</p>
       <button class="btn ghost" data-act="quit">Back</button>
+    </section>`;
+  },
+
+  outdated() {
+    return head("") + `<section class="card">
+      <h2>Gecko just got an update</h2>
+      <p class="muted">Your phone and the host's phone are running different versions, so they can't play together. Reload to get the newest one. If this keeps happening, the host should reload too and reopen the room.</p>
+      <button class="btn" data-act="hardreload">Reload Gecko</button>
     </section>`;
   },
 
@@ -578,13 +604,14 @@ const GECKO_ICON = `<svg class="gecko-mark big" viewBox="0 0 64 64" aria-hidden=
 const cardRing = v => v.isOut
   ? `<div class="ring out">${GECKO_ICON}<div><div class="word">You are the Gecko</div><div class="sub">Category: ${esc(v.rcat)}</div></div></div>`
   : `<div class="ring"><div><div class="word">${esc(v.word)}</div><div class="sub">Category: ${esc(v.rcat)}</div></div></div>`;
-const peek = v => `<details class="peek"><summary>Peek at my card</summary><p>${v.isOut ? `You're <b>the Gecko</b>. Category: ${esc(v.rcat)}.` : `The word is <b>${esc(v.word)}</b>.`}</p></details>`;
+const peek = v => `<details class="peek"${ui.peekOpen ? " open" : ""}><summary>Peek at my card</summary><p>${v.isOut ? `You're <b>the Gecko</b>. Category: ${esc(v.rcat)}.` : `The word is <b>${esc(v.word)}</b>.`}</p></details>`;
 // Every question from this round and who answered it, so people can remember during the discussion.
 const recap = (v, open) => {
+  const keep = ui.recapOpen ? " open" : "";
   const rows = v.questions.map(q => `<li><span class="who ${q.b === v.myIdx ? "mine" : ""}">${esc(v.players[q.b])}</span><div><p>${esc(q.q)}</p><small class="muted">asked by ${esc(v.players[q.a])}</small></div></li>`).join("");
   return open
     ? `<section class="card"><div class="label">Who answered what</div><ol class="recap">${rows}</ol></section>`
-    : `<details class="card recap-box"><summary class="label">Who answered what (${v.questions.length} questions)</summary><ol class="recap">${rows}</ol></details>`;
+    : `<details class="card recap-box"${keep}><summary class="label">Who answered what (${v.questions.length} questions)</summary><ol class="recap">${rows}</ol></details>`;
 };
 const rulesCard = () => `<section class="card"><div class="label">Scoring</div><ul class="rules">
   <li><b>+1</b> to each player who votes for the Gecko.</li>
@@ -600,6 +627,7 @@ function savedHost() { try { const s = JSON.parse(lsGet("gekko-host")); return s
 function currentView() {
   if (ui.status === "home") return "home";
   if (ui.status === "rejected") return "rejected";
+  if (ui.status === "outdated") return "outdated";
   if (ui.status === "noserver" && !ui.view) return "noserver";
   if (ui.status === "noroom" && !ui.view) return "noroom";
   if (!ui.view) return "opening";
@@ -653,6 +681,8 @@ const actions = {
     guest.start(code, n);
   },
   retry() { ui.status = "opening"; render(); if (guest.client) guest.client.reconnect(); },
+  // A new URL skips the browser's cached copy of the page.
+  hardreload() { location.replace(location.pathname + "?r=" + Date.now() + (guest.code ? "#" + guest.code : location.hash)); },
   rejoin() { if (guest.active) { ui.status = "opening"; guest.join(); } else location.reload(); },
   quit() {
     if (guest.active && ui.view) guest.send({ type: "leave" });
@@ -692,6 +722,10 @@ const actions = {
   tolobby: () => act({ type: "tolobby" })
 };
 
+app.addEventListener("toggle", e => {
+  if (e.target.classList.contains("recap-box")) ui.recapOpen = e.target.open;
+  if (e.target.classList.contains("peek")) ui.peekOpen = e.target.open;
+}, true);
 app.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
   if (!el || el.disabled || !actions[el.dataset.act]) return;
@@ -709,5 +743,7 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 // Arriving from an invite link (…/#ABCD) prefills the code.
 const hashCode = location.hash.replace("#", "").toUpperCase();
 if (/^[A-Z]{4}$/.test(hashCode)) ui.draftCode = hashCode;
-render();
+// Coming back to a room you were already in (after a reload) rejoins it automatically.
+if (ui.draftCode && ui.draftName && lsGet("gekko-joined-" + ui.draftCode) === ui.draftName.trim()) guest.start(ui.draftCode, ui.draftName.trim());
+else render();
 if (ui.draftCode && ui.draftName) document.getElementById("codeIn")?.focus();
