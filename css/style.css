@@ -156,6 +156,8 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .peek summary::-webkit-details-marker { display: none; }
 .peek p { margin-top: 10px; color: var(--ink); }
 
+.accused-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+
 /* recap of the round's questions */
 .recap { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .recap li { display: grid; grid-template-columns: max-content 1fr; gap: 12px; align-items: start; padding: 10px 12px; background: var(--shadow); border-radius: 14px; }

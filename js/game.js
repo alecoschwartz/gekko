@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-15f";
+const VERSION = "2026-10-15g";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1 };
 
@@ -181,7 +181,7 @@ const host = {
       case "todefense": {
         if (G.phase !== "vote" || G.voteRound === 2 || !(G.votingClosed || Object.keys(this.votes).length >= G.players.length - 1)) return;
         const t = tallyOf(this.votes, G);
-        Object.assign(G, { phase: "defense", accused: t.tops, firstCounts: t.counts });
+        Object.assign(G, { phase: "defense", accused: t.tops });
         break;
       }
       case "revote":
@@ -229,14 +229,15 @@ const host = {
       ver: VERSION, code: this.code, hostName: this.me, me: name, seats: this.seats.slice(), online: this.onlineNames(),
       phase: G.phase, gid: G.gid, players: G.players, scores: G.scores, cats: G.cats || [], qPer: G.qPer,
       myIdx: idx, rcat: G.rcat, questions: G.questions, qi: G.qi,
-      nVoted: nVotes, ready: G.ready || [], voteRound: G.voteRound || 1, accused: G.accused, firstCounts: G.firstCounts, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
+      nVoted: nVotes, ready: G.ready || [], voteRound: G.voteRound || 1, accused: G.accused, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
     };
     if (inRound && G.phase !== "lobby") {
       v.isOut = idx === G.out;
       if (!v.isOut || G.phase === "results") v.word = G.word;
     }
     if (G.phase === "results") v.word = G.word;
-    if (allVoted || late) v.counts = tallyOf(this.votes, G).counts;
+    // Only who got the most votes, never the numbers. Since the Gecko doesn't vote, counts would show who didn't.
+    if (allVoted || late) v.tops = tallyOf(this.votes, G).tops;
     if (late) v.out = G.out;
     if (G.phase === "reveal" && idx === G.out) v.options = G.options;
     if (G.phase === "results") { v.guess = G.guess; v.deltas = G.deltas; }
@@ -513,7 +514,7 @@ const views = {
 
   vote() {
     const v = ui.view, n = v.players.length;
-    if (v.counts) return views.tally();
+    if (v.tops) return views.tally();
     // The Gecko doesn't vote, but gets a screen that looks the same so nobody can tell by glancing at it.
     const mine = v.isOut ? ui.fakeVote : v.myVote;
     const second = v.voteRound === 2;
@@ -533,15 +534,14 @@ const views = {
   },
 
   tally() {
-    const v = ui.view, max = Math.max(1, ...v.counts), top = Math.max(...v.counts);
-    const tops = v.counts.map((c, k) => c === top ? k : -1).filter(k => k >= 0);
-    const order = v.players.map((p, k) => k).sort((a, b) => v.counts[b] - v.counts[a]);
+    const v = ui.view, tops = v.tops;
     const accused = tops.length === 1 ? v.players[tops[0]] : null;
     const first = v.voteRound !== 2;
     return head(first ? "First vote" : "Final vote") + `
       <section class="card">
-        <h2>${accused ? `The group points at ${esc(accused)}` : `It's a tie between ${tops.map(k => esc(v.players[k])).join(" and ")}`}</h2>
-        <ul class="tally">${order.map(k => `<li class="${tops.includes(k) ? "top" : ""}"><span>${esc(v.players[k])}</span><span class="bar"><div style="width:${(v.counts[k] / max) * 100}%"></div></span><b>${v.counts[k]}</b></li>`).join("")}</ul>
+        <h2>${first ? "The first vote is in" : "The final vote is in"}</h2>
+        <div class="accused-row">${tops.map(k => `<span class="big-name">${esc(v.players[k])}</span>`).join(`<span class="muted">and</span>`)}</div>
+        <p class="muted small">${accused ? "Got the most votes." : "Tied for the most votes."} Vote counts stay secret.</p>
         ${first
           ? `<p class="muted">${accused ? `${esc(accused)} gets a chance to defend themselves, then everyone votes again.` : "Everyone tied gets a chance to defend themselves, then everyone votes again."}</p>`
           : accused ? "" : `<p class="muted">Still no clear winner, so the Gecko slips away.</p>`}
@@ -559,10 +559,6 @@ const views = {
         <p>${mine
           ? names.length > 1 ? "You're tied for the most votes. Make your case out loud. Why aren't you the Gecko?" : "The group thinks you're the Gecko. Make your case out loud. Why aren't you?"
           : `Listen to ${list} make their case. Ask them anything.`}</p>
-      </section>
-      <section class="card">
-        <div class="label">First vote</div>
-        <ul class="tally">${v.players.map((p, k) => k).sort((a, b) => v.firstCounts[b] - v.firstCounts[a]).map(k => `<li class="${v.accused.includes(k) ? "top" : ""}"><span>${esc(v.players[k])}</span><span class="bar"><div style="width:${(v.firstCounts[k] / Math.max(1, ...v.firstCounts)) * 100}%"></div></span><b>${v.firstCounts[k]}</b></li>`).join("")}</ul>
       </section>
       ${recap(v, false)}
       ${mine || host.active
@@ -623,8 +619,7 @@ const rulesCard = () => `<section class="card"><div class="label">Scoring</div><
   <li><b>+2</b> more to the Gecko for guessing the word at the end.</li></ul>
   <p class="muted small">After the first vote, whoever got the most votes defends themselves, then everyone votes again. Only the revote counts. The Gecko doesn't vote.</p></section>`;
 function isCaught(v) {
-  const top = Math.max(...v.counts), tops = v.counts.map((c, k) => c === top ? k : -1).filter(k => k >= 0);
-  return tops.length === 1 && tops[0] === v.out;
+  return v.tops.length === 1 && v.tops[0] === v.out;
 }
 function savedHost() { try { const s = JSON.parse(lsGet("gekko-host")); return s && s.code && Date.now() - s.t < 12 * 3600e3 ? s : null; } catch (e) { return null; } }
 
