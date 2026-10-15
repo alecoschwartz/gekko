@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-15e";
+const VERSION = "2026-10-15f";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1 };
 
@@ -325,7 +325,11 @@ const guest = {
     if (msg.t === "welcome") { this.name = msg.name; this.joined = this.welcomed = true; lsSet("gekko-joined-" + this.code, msg.name); ui.status = "live"; ui.err = ""; render(); }
     else if (msg.t === "view") {
       if (msg.view.ver !== VERSION) { ui.status = "outdated"; ui.view = null; render(); return; }
-      this.welcomed = true; ui.view = msg.view; ui.status = "live"; render();
+      this.welcomed = true;
+      // The host resends every 10s; only redraw when something actually changed.
+      const json = JSON.stringify(msg.view);
+      if (json === this.lastView && ui.status === "live") return;
+      this.lastView = json; ui.view = msg.view; ui.status = "live"; render();
     }
     else if (msg.t === "err") { clearTimeout(this.joinTimer); ui.err = msg.msg; ui.status = msg.reload ? "outdated" : "rejected"; render(); }
     else if (msg.t === "rejoin") this.join();
