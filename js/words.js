@@ -1,61 +1,82 @@
+// Questions should invite creative answers that prove you know the word
+// without handing it to the outsider. Each category's questions are mixed with ANY_QS.
 const BANK = {
   "Food": {
     words: ["Pizza","Sushi","Tacos","Pancakes","Ice cream","Spaghetti","Burgers","Popcorn","Curry","Salad","Donuts","Soup"],
-    qs: ["When did you last have it?","Would you order it on a first date?","Sweet, salty, or something else?","What would you drink with it?","Better homemade or from a restaurant?","How would a toddler react to it?","What's the messiest way to eat it?","Would you eat it for breakfast?","What's the worst thing you could add to it?","How much would you pay for a really good one?"]
+    qs: ["What would it say if it could talk back while you ate it?","What would be written on its tombstone?","Which family member is most like it?","What would it do at a wedding reception?","What would its restaurant be called?","Describe its smell like a perfume ad.","If it were a crime, what crime would it be?","What would it be scared of?","What would it wear to a job interview?"]
   },
   "Animals": {
     words: ["Penguin","Giraffe","Octopus","Kangaroo","Owl","Shark","Panda","Raccoon","Flamingo","Elephant","Snail","Dolphin"],
-    qs: ["Would it make a good pet?","Who wins in a fight: it or a goose?","What job would it have if it were human?","Where are you most likely to see one?","What would it name its kids?","How would it get through airport security?","Would you want to be one for a day?","What's its favorite snack?","Would it be good at karaoke?","How would it ruin a dinner party?"]
+    qs: ["What would it complain about in a one-star review?","What's its secret talent?","What would its podcast be about?","What would it bring to a potluck?","What's its most annoying habit as a roommate?","What would it get detention for?","What would its last words be?","What would it splurge on with a credit card?","What's its go-to karaoke song?"]
   },
   "Places": {
     words: ["Beach","Airport","Library","Hospital","Casino","Space station","Zoo","Gym","Movie theater","Haunted house","Supermarket","Ski resort"],
-    qs: ["What would you wear there?","How long until you'd get bored there?","Who would you bring with you?","What does it smell like?","Would you go there on a date?","What's the first thing you'd do when you arrive?","How loud is it?","Would you want to work there?","What would you never do there?","Would you go there alone at night?"]
+    qs: ["What's the plot of a horror movie set there?","Which celebrity would you want to be stuck there with?","What would the gift shop sell that it really shouldn't?","What's the unspoken rule there?","Who would you never take there?","What would your ex be doing there?","What's the worst thing you could yell there?","What would a dog think of it?","What would its reality show be called?"]
   },
   "Jobs": {
     words: ["Firefighter","Chef","Astronaut","Dentist","Teacher","Pilot","Magician","Lifeguard","Plumber","DJ","Detective","Farmer"],
-    qs: ["Would your parents be proud if you did it?","What tool do you need most?","What's the hardest part of the day?","How much do you think it pays?","What would you wear to do it?","Could you do it with a hangover?","Would you date someone who does it?","Could a robot do it?","What time does the day start?","Would you want it as a kid?"]
+    qs: ["What do they secretly google at work?","What would their superhero name be?","What's in their junk drawer?","What do they dream about at night?","What's their worst pickup line?","What's the gossip in their break room?","What would they be like as a parent?","What's their villain backstory?","What would their retirement party be like?"]
   },
   "Hobbies": {
     words: ["Camping","Karaoke","Bowling","Skydiving","Yoga","Fishing","Painting","Surfing","Chess","Baking","Hiking","Video games"],
-    qs: ["How often do you do it?","What gear do you need?","Would you do it on a first date?","Better alone or with friends?","How would your grandma do at it?","How dangerous is it, 1 to 10?","What would make it more fun?","Where's the best place to do it?","How long before you'd get good at it?","Would you watch it on TV?"]
+    qs: ["What kind of person gets way too into it?","What would the world championship trophy look like?","What's the most dramatic way to quit it?","Which historical figure would be weirdly good at it?","What would its motivational poster say?","What would a cult built around it believe?","What would you name a team that does it?","What would your boss think if they caught you doing it?","What's the worst possible place to do it?"]
   },
   "Around the house": {
     words: ["Toaster","Umbrella","Toothbrush","Couch","Mirror","Vacuum","Pillow","Remote control","Fridge","Candle","Lamp","Microwave"],
-    qs: ["How many do you own?","Which room is it in?","What would you do if it broke?","How much would you pay for a nice one?","Could you live without it?","What's the weirdest thing you could use it for?","Would it make a good gift?","How often do you clean it?","Would you lend yours to a neighbor?","What color is yours?"]
-  }
-};
-Object.assign(BANK, {
+    qs: ["What would it say about you behind your back?","What's its deepest fear?","If it came to life at night, what would it get up to?","What's its relationship status?","What would its band be called?","What other thing in the house is its nemesis?","What tattoo would it get?","What would it confess to a therapist?","What would it put on its résumé?"]
+  },
   "Movies": {
     words: ["Titanic","Jaws","Frozen","Star Wars","Shrek","Toy Story","Jurassic Park","Harry Potter","The Lion King","Finding Nemo","Home Alone","The Matrix"],
-    qs: ["How many times have you seen it?","Would you show it to a 6-year-old?","What snack goes with it?","Does it make you cry?","Would it be better as a musical?","Who would play you in it?","What time of year is best to watch it?","Would you watch it on a first date?","Who's the best character?","Would it work as a theme park ride?"]
+    qs: ["What cocktail is it?","Which of your friends would cry watching it?","What would a terrible remake be called?","Rewrite the ending in five words.","What would its villain do on vacation?","What would its holiday special be like?","What's the drinking game rule for it?","What would a 5-year-old's review say?","What would it be like as a musical?"]
   },
   "Sports": {
     words: ["Soccer","Basketball","Tennis","Golf","Swimming","Boxing","Baseball","Hockey","Volleyball","Skateboarding","Wrestling","Table tennis"],
-    qs: ["Have you ever played it?","What would you wear to play it?","Would you pay to watch it live?","How tired would you be after an hour?","Could your grandma play it?","What's the most annoying part?","Is it a real sport?","How many people do you need?","Would you bet money on it?","What injury worries you most?"]
+    qs: ["What would the halftime show look like?","Which family member would be the most dangerous at it?","What's the trash talk like?","What would happen if you played it at a funeral?","What would its mascot be?","What dumb rule would you add to it?","What would cats think of it?","How would you play it in space?","What would its fans get tattooed?"]
   },
   "Holidays": {
     words: ["Christmas","Halloween","Thanksgiving","New Year's Eve","Valentine's Day","Easter","Birthday","St. Patrick's Day","Fourth of July","Mother's Day","April Fools' Day","Hanukkah"],
-    qs: ["How do you usually celebrate it?","What food do you eat on it?","Who do you spend it with?","Is it overrated?","How much money do you spend on it?","What would you wear?","What's the best part for kids?","Would you skip it for a free vacation?","What song do you hear on it?","How early do you start getting ready?"]
+    qs: ["What's the most chaotic thing that could happen on it?","How would it act at a party if it were a person?","What would its villain look like?","What's its unofficial smell?","Who would ruin it, and how?","What would a pet think was going on?","What would its rebrand be called?","What's the dress code if it were a nightclub?","What would it complain about to the other holidays?"]
   },
   "Vehicles": {
     words: ["Bicycle","Helicopter","Submarine","Motorcycle","Bus","Train","Skateboard","Tractor","Hot air balloon","Cruise ship","Limousine","Rocket"],
-    qs: ["Have you ever ridden one?","How fast does it go?","Who would you bring along?","Would you take it to work?","What's the scariest thing about it?","How much would one cost?","Could you sleep on it?","Where would you go in it?","Would it impress a date?","How long a trip could you handle?"]
+    qs: ["What would its road rage sound like?","What's its zodiac sign?","Who would be the worst person to share one with?","What would it name itself?","What's its scene in a getaway movie?","What snack belongs in it?","What would it be scared of?","What song is blasting from it?","What would it write in its diary?"]
   },
   "Clothing": {
     words: ["Socks","Hoodie","Tuxedo","Swimsuit","Pajamas","Sunglasses","Cowboy hat","High heels","Scarf","Crocs","Tie","Raincoat"],
-    qs: ["When did you last wear it?","Would you wear it to a wedding?","How many do you own?","What color is best?","Would you wear it on a first date?","How much would you spend on one?","Is it comfortable?","Which celebrity would wear it?","What season is it for?","Would you wear it to a job interview?"]
+    qs: ["What does it say about the person wearing it?","What crime would someone wearing it commit?","How would it look on a dog?","Which cartoon character would wear it best?","What's the theme of its fashion week show?","What's its mortal enemy in the closet?","How would a time traveler from 1800 react to it?","What's the most confident way to wear it?","What would it whisper to you in the morning?"]
   },
   "Drinks": {
     words: ["Coffee","Lemonade","Hot chocolate","Milkshake","Orange juice","Tea","Smoothie","Soda","Champagne","Water","Iced tea","Energy drink"],
-    qs: ["When did you last have one?","Hot or cold?","What time of day do you drink it?","What would you eat with it?","How much do you pay for one?","Would you serve it at a party?","Could a kid have it?","How many could you drink in a row?","Where's the best place to get one?","Would you order it on a first date?"]
+    qs: ["Who orders it to look cool?","What's its personality at 2am?","Which celebrity is it?","What's its commercial jingle?","What would you name a racehorse after it?","What toast would you give with it?","What's the worst moment to spill it?","What would it say on a first date?","What's its life motto?"]
   },
   "Fantasy": {
     words: ["Dragon","Unicorn","Vampire","Mermaid","Zombie","Ghost","Wizard","Werewolf","Fairy","Troll","Alien","Robot"],
-    qs: ["Would you be friends with one?","Where does it live?","Who wins: it or a bear?","Would it make a good roommate?","What does it eat?","What does it do on a day off?","Would you want to be one?","How would you defend yourself against one?","What's its biggest weakness?","Would it be good at your job?"]
+    qs: ["What's its LinkedIn headline?","What does it post on social media?","What's its skincare routine?","How would it do on a reality dating show?","What would its HR complaint be about?","What's its favorite TV show?","How would it spend a lottery win?","What's its biggest pet peeve?","What would it be like as your boss?"]
   },
   "Landmarks": {
     words: ["Eiffel Tower","Statue of Liberty","Great Wall of China","Pyramids","Big Ben","Taj Mahal","Grand Canyon","Mount Everest","Niagara Falls","Colosseum","Golden Gate Bridge","Stonehenge"],
-    qs: ["Have you been there?","How would you get there?","What would you bring?","How long would you stay?","Would you propose there?","What souvenir would you buy?","How crowded is it?","What would you post about it?","Would your grandparents enjoy it?","Is it worth the trip?"]
+    qs: ["What would it say if it could talk?","What's the worst tourist photo you could take there?","What would you sneak in?","What do the locals secretly think of it?","What's its dating app tagline?","What would happen if it moved to your hometown?","What's the most romantic thing to do there?","What would an alien think it's for?","What's its biggest regret?"]
   }
-});
+};
+
+const ANY_QS = [
+  "What emoji is it?",
+  "What song plays when it walks into a room?",
+  "Rate its vibe from 1 to 10 and defend your rating.",
+  "What would its Instagram bio say?",
+  "What would it be voted in the high school yearbook?",
+  "What color is its aura?",
+  "What would it order at a coffee shop?",
+  "Which person here is most like it?",
+  "What would it get arrested for?",
+  "What's its villain origin story?",
+  "What would your grandma say about it?",
+  "What would its theme park ride be called?",
+  "What's its love language?",
+  "What would it bring to a desert island?",
+  "If it were a smell, what would it be?",
+  "What would it name its firstborn child?"
+];
+for (const c of Object.values(BANK)) c.qs = c.qs.concat(ANY_QS);
+
 const CATS = Object.keys(BANK);
