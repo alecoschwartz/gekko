@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-15g";
+const VERSION = "2026-10-16a";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1 };
 
@@ -150,7 +150,7 @@ const host = {
       case "nextq":
         if (G.phase !== "questions" || a.qi !== G.qi) return;
         if (who !== this.me && idx !== G.questions[G.qi].a) return;
-        if (G.qi < G.questions.length - 1) G.qi++; else G.phase = "discuss";
+        if (G.qi < G.questions.length - 1) G.qi++; else { G.phase = "discuss"; G.voteReady = []; }
         break;
       case "swapq": {
         if (G.phase !== "questions" || a.qi !== G.qi) return;
@@ -167,11 +167,17 @@ const host = {
         // a.phase/a.qi say what the sender was looking at, so two people tapping Back only go back one step.
         if (a.phase !== G.phase || (G.phase === "questions" && a.qi !== G.qi)) return;
         if (G.phase === "questions") { if (G.qi > 0) G.qi--; else { G.phase = "cards"; G.ready = []; } }
-        else if (G.phase === "discuss") { G.phase = "questions"; G.qi = G.questions.length - 1; }
-        else if (G.phase === "vote" && G.voteRound !== 2 && !Object.keys(this.votes).length) G.phase = "discuss";
+        else if (G.phase === "discuss") { G.phase = "questions"; G.qi = G.questions.length - 1; G.voteReady = []; }
+        else if (G.phase === "vote" && G.voteRound !== 2 && !Object.keys(this.votes).length) { G.phase = "discuss"; G.voteReady = []; }
         else return;
         break;
-      case "tovote": if (G.phase === "discuss") G.phase = "vote"; break;
+      case "tovote":
+        // Everyone (the Gecko too, so it doesn't stand out) taps "Ready to vote" before the vote opens.
+        if (G.phase !== "discuss" || idx < 0) return;
+        G.voteReady = [...new Set([...(G.voteReady || []), idx])];
+        if (G.voteReady.length >= G.players.length) G.phase = "vote";
+        break;
+      case "votenow": if (G.phase === "discuss" && who === this.me) G.phase = "vote"; break;
       case "vote":
         if (G.phase !== "vote" || idx < 0 || idx === G.out || a.target === idx || !(a.target >= 0 && a.target < G.players.length)) return;
         this.votes[idx] = a.target;
@@ -229,7 +235,7 @@ const host = {
       ver: VERSION, code: this.code, hostName: this.me, me: name, seats: this.seats.slice(), online: this.onlineNames(),
       phase: G.phase, gid: G.gid, players: G.players, scores: G.scores, cats: G.cats || [], qPer: G.qPer,
       myIdx: idx, rcat: G.rcat, questions: G.questions, qi: G.qi,
-      nVoted: nVotes, ready: G.ready || [], voteRound: G.voteRound || 1, accused: G.accused, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
+      nVoted: nVotes, ready: G.ready || [], voteReady: G.voteReady || [], voteRound: G.voteRound || 1, accused: G.accused, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null
     };
     if (inRound && G.phase !== "lobby") {
       v.isOut = idx === G.out;
@@ -505,11 +511,20 @@ const views = {
   },
 
   discuss() {
+    const v = ui.view, n = v.players.length, imReady = v.voteReady.includes(v.myIdx);
+    const notReady = v.players.filter((p, k) => !v.voteReady.includes(k));
     return head("Discuss") + `<section class="card"><h2>Who sounded suspicious?</h2>
-      <p class="muted">Talk it over as long as you like. When you're ready, start the vote. Everyone votes on their own phone, except the Gecko.</p></section>
-      ${recap(ui.view, true)}
-      <button class="btn" data-act="tovote">Start the vote</button>
-      <button class="btn ghost slim" data-act="back">Back to the last question</button>${peek(ui.view)}`;
+      <p class="muted">Talk it over as long as you like. The vote opens once everyone taps "Ready to vote". Everyone votes on their own phone, except the Gecko.</p></section>
+      ${recap(v, true)}
+      <section class="card">
+        <div class="row-between"><div class="label">Ready to vote</div><span class="muted small">${v.voteReady.length} of ${n}</span></div>
+        <div class="progress"><div style="width:${(v.voteReady.length / n) * 100}%"></div></div>
+        ${imReady
+          ? `<p class="muted small">You're ready. Waiting for ${notReady.map(esc).join(", ")}.</p>`
+          : `<button class="btn" data-act="tovote">Ready to vote</button>`}
+        ${host.active && notReady.length && notReady.length < n ? `<button class="btn ghost slim" data-act="votenow">Someone's phone stuck? Start the vote anyway</button>` : ""}
+      </section>
+      ${v.voteReady.length ? "" : `<button class="btn ghost slim" data-act="back">Back to the last question</button>`}${peek(v)}`;
   },
 
   vote() {
@@ -713,6 +728,7 @@ const actions = {
   back: () => act({ type: "back", phase: ui.view.phase, qi: ui.view.qi }),
   swapq: () => act({ type: "swapq", qi: ui.view.qi }),
   tovote: () => act({ type: "tovote" }),
+  votenow: () => act({ type: "votenow" }),
   vote: el => act({ type: "vote", target: +el.dataset.i }),
   fakevote(el) { ui.fakeVote = +el.dataset.i; render(); },
   reveal: () => act({ type: "reveal" }),
