@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-16a";
+const VERSION = "2026-10-23a";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1 };
 
@@ -150,17 +150,29 @@ const host = {
       case "nextq":
         if (G.phase !== "questions" || a.qi !== G.qi) return;
         if (who !== this.me && idx !== G.questions[G.qi].a) return;
+        if (!G.questions[G.qi].q) {
+          if (idx === G.questions[G.qi].a) return; // the asker has to pick one first
+          G.questions[G.qi].q = G.questions[G.qi].opts[0]; // host skipped ahead
+        }
         if (G.qi < G.questions.length - 1) G.qi++; else { G.phase = "discuss"; G.voteReady = []; }
         break;
       case "swapq": {
         if (G.phase !== "questions" || a.qi !== G.qi) return;
         if (who !== this.me && idx !== G.questions[G.qi].a) return;
-        const inRound = new Set(G.questions.map(q => q.q));
-        const next = questionDeck(G.rcat, G.usedQs || {}).find(q => !inRound.has(q));
-        if (!next) return;
-        G.questions[G.qi].q = next;
+        const inRound = new Set(G.questions.flatMap(q => q.opts || [q.q]));
+        const next = questionDeck(G.rcat, G.usedQs || {}).filter(q => !inRound.has(q)).slice(0, 2);
+        if (next.length < 2) return;
+        G.questions[G.qi].opts = next;
+        G.questions[G.qi].q = null;
         G.usedQs = G.usedQs || {};
-        markUsed(G.rcat, G.usedQs, [next]);
+        markUsed(G.rcat, G.usedQs, next);
+        break;
+      }
+      case "pickq": {
+        if (G.phase !== "questions" || a.qi !== G.qi) return;
+        const cur = G.questions[G.qi];
+        if (idx !== cur.a || !cur.opts || !cur.opts[a.k]) return;
+        cur.q = cur.opts[a.k];
         break;
       }
       case "back":
@@ -273,10 +285,11 @@ function buildRound(players, cats, qPer, used) {
     const order = shuffle([...Array(n).keys()]);
     for (let i = 0; i < n; i++) {
       if (!deck.length) deck = questionDeck(cat, {});
-      questions.push({ a: order[i], b: order[(i + 1) % n], q: deck.shift() });
+      if (deck.length < 2) deck = [...deck, ...questionDeck(cat, {}).filter(q => !deck.includes(q))];
+      questions.push({ a: order[i], b: order[(i + 1) % n], opts: [deck.shift(), deck.shift()], q: null });
     }
   }
-  markUsed(cat, used, questions.map(q => q.q));
+  markUsed(cat, used, questions.flatMap(q => q.opts));
   const decoys = shuffle(BANK[cat].words.filter(w => w !== word)).slice(0, 7);
   return {
     gid: "g" + Date.now().toString(36), phase: "cards", players, rcat: cat, word,
@@ -491,21 +504,31 @@ const views = {
 
   questions() {
     const v = ui.view, q = v.questions[v.qi], tot = v.questions.length, i = v.myIdx;
-    const role = i === q.a ? `You're asking. Read the question out loud to ${esc(v.players[q.b])}.`
+    const opts = q.opts || [q.q];
+    if (i === q.a) return head(`Question ${v.qi + 1} of ${tot}`) + `
+      <div class="progress"><div style="width:${(v.qi / tot) * 100}%"></div></div>
+      <section class="card spot">
+        <div class="qpair"><span class="who mine">${esc(v.players[q.a])}</span><span class="arrow">asks</span><span class="who">${esc(v.players[q.b])}</span></div>
+        <div class="label">Pick one to ask ${esc(v.players[q.b])}</div>
+        <div class="qopts">${opts.map((o, k) => `<button class="qopt" data-act="pickq" data-v="${k}" aria-pressed="${q.q === o}">${esc(o)}</button>`).join("")}</div>
+        <p class="muted">${q.q ? `Read it out loud to ${esc(v.players[q.b])}.` : "Tap the question you want to ask."}</p>
+      </section>
+      <button class="btn" data-act="nextq" ${q.q ? "" : "disabled"}>${v.qi === tot - 1 ? "Done. Time to discuss" : "Next question"}</button>
+      <button class="btn ghost" data-act="swapq">Two new questions</button>
+      <button class="btn ghost slim" data-act="back">${v.qi > 0 ? "Back to the last question" : "Back to the cards"}</button>
+      ${peek(v)}`;
+    const role = !q.q ? `${esc(v.players[q.a])} is choosing between two questions.`
       : i === q.b ? `${esc(v.players[q.a])} is asking you. Answer about the secret word without saying it.`
       : `Listen to ${esc(v.players[q.b])}'s answer.`;
     return head(`Question ${v.qi + 1} of ${tot}`) + `
       <div class="progress"><div style="width:${(v.qi / tot) * 100}%"></div></div>
       <section class="card ${i === q.a || i === q.b ? "spot" : ""}">
         <div class="qpair"><span class="who ${i === q.a ? "mine" : ""}">${esc(v.players[q.a])}</span><span class="arrow">asks</span><span class="who ${i === q.b ? "mine" : ""}">${esc(v.players[q.b])}</span></div>
-        <div class="qtext">${esc(q.q)}</div>
+        ${q.q ? `<div class="qtext">${esc(q.q)}</div>` : `<div class="qtext waiting">Picking a question…</div>`}
         <p class="muted">${role}</p>
       </section>
-      ${i === q.a
-        ? `<button class="btn" data-act="nextq">${v.qi === tot - 1 ? "Done. Time to discuss" : "Next question"}</button>
-           <button class="btn ghost" data-act="swapq">Swap this question</button>`
-        : `<p class="muted small center-text">Waiting for ${esc(v.players[q.a])} to tap Next.</p>
-           ${host.active ? `<button class="btn ghost slim" data-act="nextq">${esc(v.players[q.a])}'s phone stuck? Skip ahead</button>` : ""}`}
+      <p class="muted small center-text">Waiting for ${esc(v.players[q.a])} to ${q.q ? "tap Next" : "pick a question"}.</p>
+      ${host.active ? `<button class="btn ghost slim" data-act="nextq">${esc(v.players[q.a])}'s phone stuck? Skip ahead</button>` : ""}
       <button class="btn ghost slim" data-act="back">${v.qi > 0 ? "Back to the last question" : "Back to the cards"}</button>
       ${peek(v)}`;
   },
@@ -727,6 +750,7 @@ const actions = {
   nextq: () => act({ type: "nextq", qi: ui.view.qi }),
   back: () => act({ type: "back", phase: ui.view.phase, qi: ui.view.qi }),
   swapq: () => act({ type: "swapq", qi: ui.view.qi }),
+  pickq: el => act({ type: "pickq", qi: ui.view.qi, k: +el.dataset.v }),
   tovote: () => act({ type: "tovote" }),
   votenow: () => act({ type: "votenow" }),
   vote: el => act({ type: "vote", target: +el.dataset.i }),

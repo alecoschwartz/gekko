@@ -150,6 +150,11 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .qpair .who { background: var(--shadow); padding: 5px 13px; border-radius: 999px; overflow-wrap: anywhere; }
 .qpair .who.mine { background: var(--hot); color: var(--hot-ink); }
 .qpair .arrow { color: var(--muted); font-size: .9rem; text-transform: uppercase; letter-spacing: .1em; }
+.qopts { display: grid; gap: 12px; margin: 10px 0 4px; }
+.qopt { text-align: left; font: inherit; font-weight: 800; font-size: 1.15rem; line-height: 1.25; color: var(--ink); background: var(--shadow); border: 2px solid var(--line); border-radius: 18px; padding: 16px 18px; cursor: pointer; transition: transform .08s; }
+.qopt:active { transform: scale(.98); }
+.qopt[aria-pressed="true"] { background: var(--hot); border-color: var(--hot); color: var(--hot-ink); box-shadow: 0 4px 0 var(--hot-deep); }
+.qtext.waiting { color: var(--muted); }
 .qtext { font-family: var(--display); font-size: clamp(1.6rem, 7vw, 2.1rem); line-height: 1.12; text-wrap: balance; }
 .peek { color: var(--muted); font-size: .92rem; align-self: center; text-align: center; }
 .peek summary { cursor: pointer; font-weight: 700; list-style: none; padding: 6px 12px; border-radius: 999px; border: 2px dashed var(--line); }
