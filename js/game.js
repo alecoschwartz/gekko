@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-24a";
+const VERSION = "2026-10-24b";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -155,6 +155,7 @@ const host = {
         if (a.g === "boggle") loadDict().catch(() => {});
         break;
       case "bmode": if (who !== this.me || !["claim", "open"].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, mode: a.v }; break;
+      case "bcancel": if (who !== this.me) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, cancel: !!a.v }; break;
       case "bsize": if (who !== this.me || ![4, 5].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, size: a.v }; break;
       case "bmins": if (who !== this.me || ![1, 2, 3, 4, 5].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, mins: a.v }; break;
       case "word": {
@@ -433,7 +434,7 @@ const views = {
     <section class="card">
       <h1>Who's the <span class="hl">Gecko</span>?</h1>
       <p class="muted">Everyone gets the secret word except one player: the Gecko. Answer questions, sniff out the Gecko, and hope they can't work out the word. Everyone plays on their own phone.</p>
-      <p class="muted small">Also in here: <b>Boggle</b>. Pick it in the lobby.</p>
+      <p class="muted small">Also in here: <b>Goggle</b>, a word hunt on a letter grid. Pick it in the lobby.</p>
     </section>
     <section class="card">
       <label class="label" for="nameIn">Your name</label>
@@ -517,13 +518,15 @@ const views = {
     </section>
     <section class="card">
       <div class="label">Game</div>
-      <div class="chips"><button class="chip" data-act="game" data-v="gecko" ${lock} aria-pressed="${!boggle}">Gecko</button><button class="chip" data-act="game" data-v="boggle" ${lock} aria-pressed="${boggle}">Boggle</button></div>
+      <div class="chips"><button class="chip" data-act="game" data-v="gecko" ${lock} aria-pressed="${!boggle}">Gecko</button><button class="chip" data-act="game" data-v="boggle" ${lock} aria-pressed="${boggle}">Goggle</button></div>
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the game.</p>`}
     </section>
     ${boggle ? `<section class="card">
       <div class="label">Who gets each word</div>
       <div class="chips"><button class="chip" data-act="bmode" data-v="claim" ${lock} aria-pressed="${bs.mode === "claim"}">First to find it</button><button class="chip" data-act="bmode" data-v="open" ${lock} aria-pressed="${bs.mode === "open"}">Everyone finds their own</button></div>
-      <p class="muted small">${bs.mode === "claim" ? "Once someone gets a word, nobody else can. Everyone's lists show live." : "Every word you find counts, even if others found it too. Lists show at the end."}</p>
+      ${bs.mode === "open" ? `<div class="label">Words more than one person found</div>
+      <div class="chips"><button class="chip" data-act="bcancel" data-v="0" ${lock} aria-pressed="${!bs.cancel}">Still count</button><button class="chip" data-act="bcancel" data-v="1" ${lock} aria-pressed="${!!bs.cancel}">Cancel out</button></div>` : ""}
+      <p class="muted small">${bs.mode === "claim" ? "Once someone gets a word, nobody else can. Everyone's lists show live." : bs.cancel ? "Lists show at the end. A word two or more people found scores for nobody." : "Lists show at the end. Every word you find counts, even if others found it too."}</p>
       <div class="label">Board</div>
       <div class="chips"><button class="chip" data-act="bsize" data-v="4" ${lock} aria-pressed="${bs.size === 4}">4 × 4</button><button class="chip" data-act="bsize" data-v="5" ${lock} aria-pressed="${bs.size === 5}">5 × 5 (4+ letter words)</button></div>
       <div class="label">Time</div>
@@ -838,6 +841,7 @@ const actions = {
   tolobby: () => act({ type: "tolobby" }),
   game: el => act({ type: "game", g: el.dataset.v }),
   bmode: el => act({ type: "bmode", v: el.dataset.v }),
+  bcancel: el => act({ type: "bcancel", v: +el.dataset.v }),
   bsize: el => act({ type: "bsize", v: +el.dataset.v }),
   bmins: el => act({ type: "bmins", v: +el.dataset.v }),
   bsubmit: () => bSubmit(),

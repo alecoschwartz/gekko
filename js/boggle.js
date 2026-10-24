@@ -1,4 +1,4 @@
-// Boggle mode: everyone gets the same letter grid and hunts for words on their own phone.
+// Goggle (a Boggle-style word hunt): everyone gets the same letter grid and hunts for words on their own phone.
 // The host's phone holds the word list and decides which words count.
 
 // Classic dice. "Q" always comes up as "Qu".
@@ -6,7 +6,7 @@ const BOGGLE_DICE = {
   4: ["AAEEGN","ABBJOO","ACHOPS","AFFKPS","AOOTTW","CIMOTU","DEILRX","DELRVY","DISTTY","EEGHNW","EEINSU","EHRTVW","EIOSST","ELRTTY","HIMNQU","HLNNRZ"],
   5: ["AAAFRS","AAEEEE","AAFIRS","ADENNN","AEEEEM","AEEGMU","AEGMNN","AFIRSY","BJKQXZ","CCENST","CEIILT","CEILPT","CEIPST","DDHNOT","DHHLOR","DHLNOR","DHLNOR","EIIITT","EMOTTT","ENSSSU","FIPRSY","GORRVW","IPRRRY","NOOTUW","OOOTTU"]
 };
-const BOGGLE_DEFAULTS = { mode: "claim", size: 4, mins: 3 };
+const BOGGLE_DEFAULTS = { mode: "claim", size: 4, mins: 3, cancel: false };
 const minLenFor = size => size === 5 ? 4 : 3;
 const wordPts = w => w.length <= 4 ? 1 : w.length === 5 ? 2 : w.length === 6 ? 3 : w.length === 7 ? 5 : 11;
 const sortWords = ws => ws.slice().sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
@@ -94,7 +94,7 @@ const boggleHost = {
     const now = Date.now();
     return {
       gid: "b" + now.toString(36), phase: "bplay", players: seats,
-      b: { grid, size: set.size, mode: set.mode, minLen, startsAt: now + 3500, endsAt: now + 3500 + set.mins * 60000, found: {}, possible: sol.length }
+      b: { grid, size: set.size, mode: set.mode, minLen, startsAt: now + 3500, endsAt: now + 3500 + set.mins * 60000, found: {}, possible: sol.length, cancel: set.mode === "open" && !!set.cancel }
     };
   },
 
@@ -121,14 +121,17 @@ const boggleHost = {
     b.missed = sortWords(all.filter(w => !anyone.has(w))).slice(0, 12);
     b.round = {};
     G.bscores = G.bscores || {};
-    G.players.forEach(p => { const pts = (b.found[p] || []).reduce((s, w) => s + wordPts(w), 0); b.round[p] = pts; G.bscores[p] = (G.bscores[p] || 0) + pts; });
+    // With cancelling on, a word more than one person found scores for nobody.
+    const tally = {}; Object.values(b.found).forEach(ws => ws.forEach(w => { tally[w] = (tally[w] || 0) + 1; }));
+    const counts = w => !b.cancel || tally[w] === 1;
+    G.players.forEach(p => { const pts = (b.found[p] || []).filter(counts).reduce((s, w) => s + wordPts(w), 0); b.round[p] = pts; G.bscores[p] = (G.bscores[p] || 0) + pts; });
     G.phase = "bresults";
   },
 
   view(G, name, bLast) {
     const b = G.b, done = G.phase === "bresults", now = Date.now(), counts = {}, pts = {};
     G.players.forEach(p => { const ws = b.found[p] || []; counts[p] = ws.length; pts[p] = ws.reduce((s, w) => s + wordPts(w), 0); });
-    const v = { grid: b.grid, size: b.size, mode: b.mode, minLen: b.minLen, startsIn: b.startsAt - now, endsIn: b.endsAt - now, mine: b.found[name] || [], counts, pts, last: bLast || null };
+    const v = { grid: b.grid, size: b.size, mode: b.mode, cancel: !!b.cancel, minLen: b.minLen, startsIn: b.startsAt - now, endsIn: b.endsAt - now, mine: b.found[name] || [], counts, pts, last: bLast || null };
     // In "everyone finds their own" mode, other people's words stay hidden until time's up.
     if (b.mode === "claim" || done) v.found = b.found;
     if (done) Object.assign(v, { missed: b.missed, possible: b.possible, round: b.round });
@@ -250,8 +253,8 @@ setInterval(() => {
 function wordCol(v, p, words, opts = {}) {
   const ws = sortWords(words);
   return `<div class="wcol ${p === v.me ? "mine" : ""}">
-    <div class="wcol-head"><b>${esc(p)}${p === v.me ? " (you)" : ""}</b><span>${opts.pts != null ? opts.pts : v.b.pts[p]}</span></div>
-    <ul id="wl-${esc(p)}">${ws.length ? ws.map(w => `<li class="${opts.solo && opts.solo.has(w) ? "solo" : ""}"><span>${esc(w.toUpperCase())}</span><small>${wordPts(w)}</small></li>`).join("") : `<li class="none">${opts.pts != null ? "No words" : "No words yet"}</li>`}</ul>
+    <div class="wcol-head"><b>${esc(p)}</b><span>${opts.pts != null ? opts.pts : v.b.pts[p]}</span></div>
+    <ul id="wl-${esc(p)}">${ws.length ? ws.map(w => { const out = opts.cancelled && opts.cancelled.has(w); return `<li class="${out ? "cancelled" : opts.solo && opts.solo.has(w) ? "solo" : ""}"><span>${esc(w.toUpperCase())}</span><small>${out ? 0 : wordPts(w)}</small></li>`; }).join("") : `<li class="none">${opts.pts != null ? "No words" : "No words yet"}</li>`}</ul>
   </div>`;
 }
 
@@ -265,11 +268,11 @@ function bLists(v) {
     return `<div class="label">Words found · longest first</div><div class="wcols">${order.map(p => wordCol(v, p, b.found[p] || [])).join("")}</div>`;
   }
   const others = v.players.filter(p => p !== v.me);
-  return `<div class="label">Your words · longest first</div><div class="wcols one">${wordCol(v, v.me, b.mine)}</div>
-    ${others.length ? `<div class="label">Everyone else (words show at the end)</div><ul class="bothers">${others.map(p => `<li><b>${esc(p)}</b><span>${plural(b.counts[p], "word")} · ${b.pts[p]} pts</span></li>`).join("")}</ul>` : ""}`;
+  return `<div class="label">Your words · longest first${b.cancel ? " · words others also find won't count" : ""}</div><div class="wcols one">${wordCol(v, v.me, b.mine)}</div>
+    ${others.length ? `<div class="label">Everyone else (words show at the end)</div><ul class="bothers">${others.map(p => `<li><b>${esc(p)}</b><span>${plural(b.counts[p], "word")}${b.cancel ? "" : ` · ${b.pts[p]} pts`}</span></li>`).join("")}</ul>` : ""}`;
 }
 
-function bHead(v) { return head(v.b.mode === "claim" ? "Boggle · First wins" : "Boggle · Own words"); }
+function bHead(v) { return head(v.b.mode === "claim" ? "Goggle · First wins" : v.b.cancel ? "Goggle · Shared cancel" : "Goggle · Own words"); }
 
 const boggleViews = {
   bplay() {
@@ -299,9 +302,9 @@ const boggleViews = {
     const winners = order.filter(p => (b.round[p] || 0) === top && top > 0);
     // Words only one person found get a star in "everyone finds their own" mode.
     const tally = {}; Object.values(b.found).forEach(ws => ws.forEach(w => { tally[w] = (tally[w] || 0) + 1; }));
-    const solo = new Set(Object.keys(tally).filter(w => tally[w] === 1));
+    const solo = new Set(Object.keys(tally).filter(w => tally[w] === 1)), shared = new Set(Object.keys(tally).filter(w => tally[w] > 1));
     const total = Object.keys(tally).length;
-    return head("Boggle · Round over") + `
+    return head("Goggle · Round over") + `
     <section class="card center">
       <div class="label">${winners.length > 1 ? "Tied for the win" : winners.length ? "Winner" : "Nobody scored"}</div>
       ${winners.length ? `<div class="big-name">${winners.map(esc).join(" & ")}</div><p class="muted">${top} points</p>` : ""}
@@ -312,13 +315,13 @@ const boggleViews = {
       <ul class="players">${order.map(p => `<li class="${p === v.me ? "you" : ""}"><span>${esc(p)} <small class="muted">${plural((b.found[p] || []).length, "word")}</small></span><em>+${b.round[p] || 0}</em></li>`).join("")}</ul>
     </section>
     <div class="stack">
-      <div class="label">Everyone's words · longest first${b.mode === "open" ? " · ★ only you found it" : ""}</div>
-      <div class="wcols">${order.map(p => wordCol(v, p, b.found[p] || [], { pts: b.round[p] || 0, solo: b.mode === "open" ? solo : null })).join("")}</div>
+      <div class="label">Everyone's words · longest first${b.cancel ? " · crossed out: someone else found it too" : b.mode === "open" ? " · ★ only you found it" : ""}</div>
+      <div class="wcols">${order.map(p => wordCol(v, p, b.found[p] || [], { pts: b.round[p] || 0, solo: b.mode === "open" && !b.cancel ? solo : null, cancelled: b.cancel ? shared : null })).join("")}</div>
     </div>
     ${b.missed && b.missed.length ? `<section class="card"><div class="label">Best words nobody found</div><div class="chips">${b.missed.map(w => `<span class="chip static">${esc(w.toUpperCase())}</span>`).join("")}</div></section>` : ""}
     <section class="card"><div class="label">Board</div><div class="bgrid small s${b.size}">${b.grid.map(L => `<div class="tile${L === "Qu" ? " qu" : ""}">${esc(L)}</div>`).join("")}</div></section>
     <section class="card">
-      <div class="label">Boggle scoreboard</div>
+      <div class="label">Goggle scoreboard</div>
       <ul class="players">${byScore(v, v.bscores).map(p => `<li class="${p === v.me ? "you" : ""}"><span>${esc(p)}</span><em>${v.bscores[p] || 0}</em></li>`).join("")}</ul>
     </section>
     <button class="btn" data-act="start">New board</button>
@@ -339,9 +342,9 @@ function bPatch() {
   bPaint();
 }
 
-const boggleRules = () => `<section class="card"><div class="label">How Boggle works</div><ul class="rules">
+const boggleRules = () => `<section class="card"><div class="label">How Goggle works</div><ul class="rules">
   <li>Everyone gets the same grid. Make words from letters that touch, diagonals included. Each tile once per word.</li>
   <li>Swipe across the tiles, tap them one at a time (tap the last one again to enter), or type.</li>
   <li>Words need 3+ letters (4+ on the 5×5 board). Points: 3–4 letters <b>1</b>, 5 <b>2</b>, 6 <b>3</b>, 7 <b>5</b>, 8+ <b>11</b>.</li>
   <li><b>First to find it:</b> once someone gets a word, nobody else can, and everyone sees everyone's lists live.</li>
-  <li><b>Everyone finds their own:</b> every word you find counts, even if others found it too. Lists are revealed at the end.</li></ul></section>`;
+  <li><b>Everyone finds their own:</b> lists are revealed at the end. With <b>Cancel out</b> on, a word two or more people found scores for nobody. Otherwise every word you find counts.</li></ul></section>`;

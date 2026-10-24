@@ -241,6 +241,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .wcol li span { overflow-wrap: anywhere; }
 .wcol li small { color: var(--muted); }
 .wcol li.solo span::after { content: " ★"; color: var(--hot); }
+.wcol li.cancelled span { text-decoration: line-through; color: var(--muted); }
 .wcol li.none { color: var(--muted); font-family: var(--body); border: 0; }
 .bothers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .bothers li { display: flex; justify-content: space-between; gap: 10px; background: var(--shadow); border-radius: 12px; padding: 8px 12px; }
