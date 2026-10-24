@@ -6,7 +6,7 @@ const BROKER = "wss://broker.emqx.io:8084/mqtt";
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-24b";
+const VERSION = "2026-10-24c";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -156,6 +156,8 @@ const host = {
         break;
       case "bmode": if (who !== this.me || !["claim", "open"].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, mode: a.v }; break;
       case "bcancel": if (who !== this.me) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, cancel: !!a.v }; break;
+      case "bmin": if (who !== this.me || ![3, 4, 5].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, min: a.v }; break;
+      case "breuse": if (who !== this.me) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, reuse: !!a.v }; break;
       case "bsize": if (who !== this.me || ![4, 5].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, size: a.v }; break;
       case "bmins": if (who !== this.me || ![1, 2, 3, 4, 5].includes(a.v)) return; G.bset = { ...BOGGLE_DEFAULTS, ...G.bset, mins: a.v }; break;
       case "word": {
@@ -528,7 +530,11 @@ const views = {
       <div class="chips"><button class="chip" data-act="bcancel" data-v="0" ${lock} aria-pressed="${!bs.cancel}">Still count</button><button class="chip" data-act="bcancel" data-v="1" ${lock} aria-pressed="${!!bs.cancel}">Cancel out</button></div>` : ""}
       <p class="muted small">${bs.mode === "claim" ? "Once someone gets a word, nobody else can. Everyone's lists show live." : bs.cancel ? "Lists show at the end. A word two or more people found scores for nobody." : "Lists show at the end. Every word you find counts, even if others found it too."}</p>
       <div class="label">Board</div>
-      <div class="chips"><button class="chip" data-act="bsize" data-v="4" ${lock} aria-pressed="${bs.size === 4}">4 × 4</button><button class="chip" data-act="bsize" data-v="5" ${lock} aria-pressed="${bs.size === 5}">5 × 5 (4+ letter words)</button></div>
+      <div class="chips"><button class="chip" data-act="bsize" data-v="4" ${lock} aria-pressed="${bs.size === 4}">4 × 4</button><button class="chip" data-act="bsize" data-v="5" ${lock} aria-pressed="${bs.size === 5}">5 × 5</button></div>
+      <div class="label">Reuse a letter in the same word</div>
+      <div class="chips"><button class="chip" data-act="breuse" data-v="0" ${lock} aria-pressed="${!bs.reuse}">Not allowed</button><button class="chip" data-act="breuse" data-v="1" ${lock} aria-pressed="${!!bs.reuse}">Allowed</button></div>
+      <div class="label">Shortest word allowed</div>
+      <div class="chips">${[3, 4, 5].map(n => `<button class="chip" data-act="bmin" data-v="${n}" ${lock} aria-pressed="${bs.min === n}">${n} letters</button>`).join("")}</div>
       <div class="label">Time</div>
       <div class="chips">${[1, 2, 3, 4, 5].map(m => `<button class="chip" data-act="bmins" data-v="${m}" ${lock} aria-pressed="${bs.mins === m}">${m} min</button>`).join("")}</div>
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the settings.</p>`}
@@ -756,7 +762,7 @@ function render() {
   // Mid-round Boggle updates only touch the parts that changed, so typing and swiping aren't interrupted.
   if (view === "bplay" && key === ui.lastKey && bState() === ui.bShownState && document.getElementById("bgrid")) { bPatch(); return; }
   if (key !== ui.lastKey) {
-    if (view === "bplay") { ui.bPath = []; ui.bText = ""; ui.bToast = null; }
+    if (view === "bplay") { ui.bPath = []; ui.bText = ""; ui.bToast = null; ui.bRot = 0; }
     if (v && ui.lastKey.split("|")[1] !== v.gid) ui.shown = false;
     ui.fakeVote = null;
     ui.lastKey = key;
@@ -842,6 +848,9 @@ const actions = {
   game: el => act({ type: "game", g: el.dataset.v }),
   bmode: el => act({ type: "bmode", v: el.dataset.v }),
   bcancel: el => act({ type: "bcancel", v: +el.dataset.v }),
+  bmin: el => act({ type: "bmin", v: +el.dataset.v }),
+  brotate: () => bRotate(),
+  breuse: el => act({ type: "breuse", v: +el.dataset.v }),
   bsize: el => act({ type: "bsize", v: +el.dataset.v }),
   bmins: el => act({ type: "bmins", v: +el.dataset.v }),
   bsubmit: () => bSubmit(),

@@ -206,6 +206,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 /* ---------- Boggle ---------- */
 .board { gap: 12px; padding: 16px 14px 14px; }
 .bstatus { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.bstatus .rot { margin-right: auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--panel-hi); border: 2px solid var(--line); color: var(--ink); box-shadow: 0 3px 0 var(--shadow); }
+.bstatus .rot svg { width: 22px; height: 22px; }
+.bstatus .rot:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--shadow); }
+.bstatus .rot:disabled { opacity: .4; }
+.bgrid.spin { animation: spin .25s ease-out; }
+@keyframes spin { from { transform: rotate(-90deg); } to { transform: none; } }
 .bstatus b { color: var(--hot); font-size: 1.2rem; }
 .btimer { font-family: var(--mono); font-size: 1.9rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
 .btimer.low { color: var(--spot); }
@@ -228,7 +234,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .btoast.good { color: var(--good); }
 .btoast.bad { color: var(--spot); }
 .btoast.gone { opacity: 0; }
-.wcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+.wcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .wcols.one { grid-template-columns: 1fr; }
 .wcols.one ul { columns: 2; column-gap: 16px; }
 .wcol { background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border: 2px solid var(--line); border-radius: 16px; padding: 10px 10px 6px; min-width: 0; box-shadow: 0 4px 0 var(--shadow); }
@@ -246,6 +252,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .bothers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .bothers li { display: flex; justify-content: space-between; gap: 10px; background: var(--shadow); border-radius: 12px; padding: 8px 12px; }
 .bothers li span { color: var(--muted); font-size: .9rem; }
+.bestword { font-size: clamp(1.8rem, 9vw, 2.6rem); font-weight: 700; color: var(--hot); letter-spacing: .06em; overflow-wrap: anywhere; line-height: 1.1; }
 .chip.static { color: var(--ink); font-family: var(--mono); cursor: default; }
 .bgrid.small { width: min(60%, 220px); gap: 5px; }
 .bgrid.small .tile { font-size: 1.1rem; border-radius: 8px; box-shadow: 0 3px 0 #a99f7d; cursor: default; }

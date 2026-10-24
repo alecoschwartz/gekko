@@ -6,8 +6,7 @@ const BOGGLE_DICE = {
   4: ["AAEEGN","ABBJOO","ACHOPS","AFFKPS","AOOTTW","CIMOTU","DEILRX","DELRVY","DISTTY","EEGHNW","EEINSU","EHRTVW","EIOSST","ELRTTY","HIMNQU","HLNNRZ"],
   5: ["AAAFRS","AAEEEE","AAFIRS","ADENNN","AEEEEM","AEEGMU","AEGMNN","AFIRSY","BJKQXZ","CCENST","CEIILT","CEILPT","CEIPST","DDHNOT","DHHLOR","DHLNOR","DHLNOR","EIIITT","EMOTTT","ENSSSU","FIPRSY","GORRVW","IPRRRY","NOOTUW","OOOTTU"]
 };
-const BOGGLE_DEFAULTS = { mode: "claim", size: 4, mins: 3, cancel: false };
-const minLenFor = size => size === 5 ? 4 : 3;
+const BOGGLE_DEFAULTS = { mode: "claim", size: 4, mins: 3, cancel: false, min: 3, reuse: false };
 const wordPts = w => w.length <= 4 ? 1 : w.length === 5 ? 2 : w.length === 6 ? 3 : w.length === 7 ? 5 : 11;
 const sortWords = ws => ws.slice().sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -53,15 +52,16 @@ function rollGrid(size) {
 }
 
 // Tile indexes that spell the word, or null if it can't be traced on this grid.
-function findPath(grid, size, word) {
+// With reuse on, a word may come back to a tile it already used (just not stay on the same tile twice in a row).
+function findPath(grid, size, word, reuse) {
   const nb = neighbors(size), used = new Array(grid.length).fill(false), path = [];
   const go = (i, pos) => {
     const t = grid[i].toLowerCase();
     if (!word.startsWith(t, pos)) return false;
     path.push(i); used[i] = true;
     if (pos + t.length === word.length) return true;
-    for (const j of nb[i]) if (!used[j] && go(j, pos + t.length)) return true;
-    path.pop(); used[i] = false;
+    for (const j of nb[i]) if ((reuse || !used[j]) && go(j, pos + t.length)) return true;
+    path.pop(); used[i] = path.includes(i);
     return false;
   };
   for (let i = 0; i < grid.length; i++) if (go(i, 0)) return path;
@@ -69,14 +69,15 @@ function findPath(grid, size, word) {
 }
 
 // Every dictionary word on the grid.
-function solveGrid(grid, size, minLen) {
-  const nb = neighbors(size), used = new Array(grid.length).fill(false), found = new Set();
+function solveGrid(grid, size, minLen, reuse) {
+  const nb = neighbors(size), used = new Array(grid.length).fill(false), found = new Set(), seen = new Set();
   const dfs = (i, s) => {
     s += grid[i].toLowerCase();
+    if (reuse) { const k = i + "|" + s; if (seen.has(k)) return; seen.add(k); }
     if (!hasPrefix(s)) return;
     if (s.length >= minLen && DICT.set.has(s)) found.add(s);
     used[i] = true;
-    for (const j of nb[i]) if (!used[j]) dfs(j, s);
+    for (const j of nb[i]) if (reuse || !used[j]) dfs(j, s);
     used[i] = false;
   };
   for (let i = 0; i < grid.length; i++) dfs(i, "");
@@ -88,13 +89,13 @@ function solveGrid(grid, size, minLen) {
 const boggleHost = {
   // Roll until the board has a decent number of words.
   newRound(G, seats) {
-    const set = { ...BOGGLE_DEFAULTS, ...(G.bset || {}) }, minLen = minLenFor(set.size), want = set.size === 5 ? 120 : 45;
+    const set = { ...BOGGLE_DEFAULTS, ...(G.bset || {}) }, minLen = set.min, want = ({ 3: 45, 4: 25, 5: 10 }[minLen] || 10) * (set.size === 5 ? 2.5 : 1);
     let grid, sol = [];
-    for (let t = 0; t < 40 && sol.length < want; t++) { const g = rollGrid(set.size), s = solveGrid(g, set.size, minLen); if (s.length > sol.length) { grid = g; sol = s; } }
+    for (let t = 0; t < 40 && sol.length < want; t++) { const g = rollGrid(set.size), s = solveGrid(g, set.size, minLen, set.reuse); if (s.length > sol.length) { grid = g; sol = s; } }
     const now = Date.now();
     return {
       gid: "b" + now.toString(36), phase: "bplay", players: seats,
-      b: { grid, size: set.size, mode: set.mode, minLen, startsAt: now + 3500, endsAt: now + 3500 + set.mins * 60000, found: {}, possible: sol.length, cancel: set.mode === "open" && !!set.cancel }
+      b: { grid, size: set.size, mode: set.mode, minLen, startsAt: now + 3500, endsAt: now + 3500 + set.mins * 60000, found: {}, possible: sol.length, cancel: set.mode === "open" && !!set.cancel, reuse: !!set.reuse }
     };
   },
 
@@ -103,7 +104,7 @@ const boggleHost = {
     const b = G.b, w = cleanWord(raw), W = w.toUpperCase(), now = Date.now();
     if (now < b.startsAt - 500 || now > b.endsAt + 1500) return { ok: false, msg: "Time's up" };
     if (w.length < b.minLen) return { ok: false, msg: `Words need ${b.minLen}+ letters` };
-    if (!findPath(b.grid, b.size, w)) return { ok: false, msg: `${W} isn't on the board` };
+    if (!findPath(b.grid, b.size, w, b.reuse)) return { ok: false, msg: `${W} isn't on the board` };
     if (!DICT.set.has(w)) return { ok: false, msg: `${W} isn't in the dictionary` };
     const mine = b.found[who] || (b.found[who] = []);
     if (mine.includes(w)) return { ok: false, msg: `You already have ${W}` };
@@ -116,7 +117,7 @@ const boggleHost = {
   },
 
   finish(G) {
-    const b = G.b, all = solveGrid(b.grid, b.size, b.minLen), anyone = new Set(Object.values(b.found).flat());
+    const b = G.b, all = solveGrid(b.grid, b.size, b.minLen, b.reuse), anyone = new Set(Object.values(b.found).flat());
     b.possible = all.length;
     b.missed = sortWords(all.filter(w => !anyone.has(w))).slice(0, 12);
     b.round = {};
@@ -131,7 +132,7 @@ const boggleHost = {
   view(G, name, bLast) {
     const b = G.b, done = G.phase === "bresults", now = Date.now(), counts = {}, pts = {};
     G.players.forEach(p => { const ws = b.found[p] || []; counts[p] = ws.length; pts[p] = ws.reduce((s, w) => s + wordPts(w), 0); });
-    const v = { grid: b.grid, size: b.size, mode: b.mode, cancel: !!b.cancel, minLen: b.minLen, startsIn: b.startsAt - now, endsIn: b.endsAt - now, mine: b.found[name] || [], counts, pts, last: bLast || null };
+    const v = { grid: b.grid, size: b.size, mode: b.mode, cancel: !!b.cancel, reuse: !!b.reuse, minLen: b.minLen, startsIn: b.startsAt - now, endsIn: b.endsAt - now, mine: b.found[name] || [], counts, pts, last: bLast || null };
     // In "everyone finds their own" mode, other people's words stay hidden until time's up.
     if (b.mode === "claim" || done) v.found = b.found;
     if (done) Object.assign(v, { missed: b.missed, possible: b.possible, round: b.round });
@@ -162,18 +163,18 @@ const pathWord = (grid, path) => path.map(i => grid[i]).join("").toLowerCase();
 
 function bTileClasses() {
   const v = ui.view; if (!v || !v.b) return [];
-  const path = ui.bPath && ui.bPath.length ? ui.bPath : (ui.bText ? findPath(v.b.grid, v.b.size, ui.bText) || [] : []);
+  const path = ui.bPath && ui.bPath.length ? ui.bPath : (ui.bText ? findPath(v.b.grid, v.b.size, ui.bText, v.b.reuse) || [] : []);
   return v.b.grid.map((_, i) => path[path.length - 1] === i ? "on last" : path.includes(i) ? "on" : "");
 }
 
 // Repaint only the tiles and the word box (cheap, used while swiping and typing).
 function bPaint() {
   const v = ui.view, cls = bTileClasses();
-  document.querySelectorAll("#bgrid .tile").forEach((t, i) => { t.className = "tile" + (v.b.grid[i] === "Qu" ? " qu" : "") + (cls[i] ? " " + cls[i] : ""); });
+  document.querySelectorAll("#bgrid .tile").forEach(t => { const i = +t.dataset.i; t.className = "tile" + (v.b.grid[i] === "Qu" ? " qu" : "") + (cls[i] ? " " + cls[i] : ""); });
   const inp = document.getElementById("bIn");
   if (inp) {
     if (ui.bPath && ui.bPath.length) inp.value = pathWord(v.b.grid, ui.bPath).toUpperCase();
-    inp.classList.toggle("bad", !!ui.bText && !(ui.bPath && ui.bPath.length) && !findPath(v.b.grid, v.b.size, ui.bText));
+    inp.classList.toggle("bad", !!ui.bText && !(ui.bPath && ui.bPath.length) && !findPath(v.b.grid, v.b.size, ui.bText, v.b.reuse));
   }
 }
 
@@ -188,7 +189,7 @@ function bSubmit() {
   if (!w) return;
   const W = w.toUpperCase();
   if (w.length < v.b.minLen) return bToast(`Words need ${v.b.minLen}+ letters`, false);
-  if (!findPath(v.b.grid, v.b.size, w)) return bToast(`${W} isn't on the board`, false);
+  if (!findPath(v.b.grid, v.b.size, w, v.b.reuse)) return bToast(`${W} isn't on the board`, false);
   if (v.b.mine.includes(w)) return bToast(`You already have ${W}`, false);
   bToast(`Checking ${W}…`, true);
   act({ type: "word", w });
@@ -215,8 +216,8 @@ document.addEventListener("pointerdown", e => {
   const p = ui.bPath, last = p[p.length - 1];
   drag.again = false;
   if (p.length && i === last) drag.again = true;
-  else if (p.includes(i)) ui.bPath = p.slice(0, p.indexOf(i) + 1);
-  else if (p.length && touching(v.b.size, last, i)) p.push(i);
+  else if (p.length && touching(v.b.size, last, i) && (v.b.reuse || !p.includes(i))) p.push(i);
+  else if (p.includes(i)) ui.bPath = p.slice(0, p.lastIndexOf(i) + 1);
   else ui.bPath = [i];
   drag.on = true; drag.moved = false;
   bPaint();
@@ -224,8 +225,9 @@ document.addEventListener("pointerdown", e => {
 document.addEventListener("pointermove", e => {
   if (!drag.on) return;
   const i = tileAt(e.clientX, e.clientY, true), p = ui.bPath; if (i < 0 || !p.length || i === p[p.length - 1]) return;
-  if (i === p[p.length - 2]) p.pop();
-  else if (!p.includes(i) && touching(ui.view.b.size, p[p.length - 1], i)) p.push(i);
+  const reuse = ui.view.b.reuse;
+  if (!reuse && i === p[p.length - 2]) p.pop();
+  else if ((reuse || !p.includes(i)) && touching(ui.view.b.size, p[p.length - 1], i)) p.push(i);
   else return;
   drag.moved = true; drag.again = false;
   bPaint();
@@ -272,6 +274,24 @@ function bLists(v) {
     ${others.length ? `<div class="label">Everyone else (words show at the end)</div><ul class="bothers">${others.map(p => `<li><b>${esc(p)}</b><span>${plural(b.counts[p], "word")}${b.cancel ? "" : ` · ${b.pts[p]} pts`}</span></li>`).join("")}</ul>` : ""}`;
 }
 
+// Rotating only changes where tiles sit on this phone. Adjacency doesn't change, so words and swipes work the same.
+function rotOrder(size, rot) {
+  let order = [...Array(size * size).keys()];
+  for (let k = 0; k < rot; k++) order = order.map((_, p) => order[(size - 1 - (p % size)) * size + Math.floor(p / size)]);
+  return order;
+}
+function bGridInner(v, st) {
+  const b = v.b, cls = bTileClasses();
+  return rotOrder(b.size, ui.bRot || 0).map(i => { const L = b.grid[i]; return `<div class="tile${L === "Qu" ? " qu" : ""}${cls[i] ? " " + cls[i] : ""}" data-i="${i}">${st === "count" ? "" : esc(L)}</div>`; }).join("")
+    + (st === "count" ? `<div class="bover">Get ready</div>` : st === "over" ? `<div class="bover">Time's up!</div>` : "");
+}
+function bRotate() {
+  const v = ui.view, g = document.getElementById("bgrid"); if (!v || !v.b || !g) return;
+  ui.bRot = ((ui.bRot || 0) + 1) % 4;
+  g.innerHTML = bGridInner(v, bState());
+  g.classList.remove("spin"); void g.offsetWidth; g.classList.add("spin");
+}
+
 function bHead(v) { return head(v.b.mode === "claim" ? "Goggle · First wins" : v.b.cancel ? "Goggle · Shared cancel" : "Goggle · Own words"); }
 
 const boggleViews = {
@@ -282,11 +302,8 @@ const boggleViews = {
     const toast = ui.bToast && now - ui.bToast.at < 2500 ? ui.bToast : null;
     return `<div id="bhead">${bHead(v)}</div>
     <section class="card board">
-      <div class="bstatus"><span id="btimer" class="btimer ${st === "count" ? "count" : ""}">${timer}</span><span id="bscore" class="muted"><b>${b.pts[v.me] || 0}</b> pts · ${plural(b.mine.length, "word")}</span></div>
-      <div class="bgrid s${b.size}" id="bgrid">
-        ${b.grid.map((L, i) => `<div class="tile${L === "Qu" ? " qu" : ""}${cls[i] ? " " + cls[i] : ""}" data-i="${i}">${st === "count" ? "" : esc(L)}</div>`).join("")}
-        ${st === "count" ? `<div class="bover">Get ready</div>` : st === "over" ? `<div class="bover">Time's up!</div>` : ""}
-      </div>
+      <div class="bstatus"><span id="btimer" class="btimer ${st === "count" ? "count" : ""}">${timer}</span><button class="rot" data-act="brotate" aria-label="Rotate the board" ${st === "count" ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span id="bscore" class="muted"><b>${b.pts[v.me] || 0}</b> pts · ${plural(b.mine.length, "word")}</span></div>
+      <div class="bgrid s${b.size}" id="bgrid">${bGridInner(v, st)}</div>
       <div class="bentry">
         <input class="field mono" id="bIn" placeholder="Swipe or type" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" value="${esc((ui.bPath && ui.bPath.length ? pathWord(b.grid, ui.bPath) : ui.bText || "").toUpperCase())}" ${st === "play" ? "" : "disabled"}>
         <button class="btn" data-act="bsubmit" ${st === "play" ? "" : "disabled"}>Enter</button>
@@ -304,12 +321,19 @@ const boggleViews = {
     const tally = {}; Object.values(b.found).forEach(ws => ws.forEach(w => { tally[w] = (tally[w] || 0) + 1; }));
     const solo = new Set(Object.keys(tally).filter(w => tally[w] === 1)), shared = new Set(Object.keys(tally).filter(w => tally[w] > 1));
     const total = Object.keys(tally).length;
+    // Just for bragging: the longest word anyone found (no points).
+    const best = sortWords(Object.keys(tally))[0];
     return head("Goggle · Round over") + `
     <section class="card center">
       <div class="label">${winners.length > 1 ? "Tied for the win" : winners.length ? "Winner" : "Nobody scored"}</div>
       ${winners.length ? `<div class="big-name">${winners.map(esc).join(" & ")}</div><p class="muted">${top} points</p>` : ""}
       <p class="muted small">You found ${total} of ${b.possible} possible words between you.</p>
     </section>
+    ${best ? `<section class="card center best">
+      <div class="label">Best word of the round</div>
+      <div class="bestword mono">${esc(best.toUpperCase())}</div>
+      <p class="muted small">Found by ${v.players.filter(p => (b.found[p] || []).includes(best)).map(esc).join(" and ")}</p>
+    </section>` : ""}
     <section class="card">
       <div class="label">This round</div>
       <ul class="players">${order.map(p => `<li class="${p === v.me ? "you" : ""}"><span>${esc(p)} <small class="muted">${plural((b.found[p] || []).length, "word")}</small></span><em>+${b.round[p] || 0}</em></li>`).join("")}</ul>
@@ -343,8 +367,8 @@ function bPatch() {
 }
 
 const boggleRules = () => `<section class="card"><div class="label">How Goggle works</div><ul class="rules">
-  <li>Everyone gets the same grid. Make words from letters that touch, diagonals included. Each tile once per word.</li>
+  <li>Everyone gets the same grid. Make words from letters that touch, diagonals included. Each tile once per word, unless the host allows reusing letters.</li>
   <li>Swipe across the tiles, tap them one at a time (tap the last one again to enter), or type.</li>
-  <li>Words need 3+ letters (4+ on the 5×5 board). Points: 3–4 letters <b>1</b>, 5 <b>2</b>, 6 <b>3</b>, 7 <b>5</b>, 8+ <b>11</b>.</li>
+  <li>Words need 3+ letters unless the host sets a longer minimum. Tap ↻ to turn the board on your phone. Points: 3–4 letters <b>1</b>, 5 <b>2</b>, 6 <b>3</b>, 7 <b>5</b>, 8+ <b>11</b>.</li>
   <li><b>First to find it:</b> once someone gets a word, nobody else can, and everyone sees everyone's lists live.</li>
   <li><b>Everyone finds their own:</b> lists are revealed at the end. With <b>Cancel out</b> on, a word two or more people found scores for nobody. Otherwise every word you find counts.</li></ul></section>`;

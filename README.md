@@ -15,4 +15,6 @@ The host can switch the lobby to **Goggle**, a Boggle-style word hunt. Everyone 
 - **First to find it:** each word can only be claimed once, and everyone's lists show live, longest first.
 - **Everyone finds their own:** lists are revealed at the end. Optionally, words more than one person found cancel out.
 
+The host can also set the shortest word allowed (3–5 letters) and whether a word may reuse a tile. Each player can rotate the board on their own phone. Results show the best (longest) word anyone found.
+
 Words are checked on the host's phone against the ENABLE word list (public domain), in `data/words.txt`, with a few slurs removed.
