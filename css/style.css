@@ -202,3 +202,49 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- Boggle ---------- */
+.board { gap: 12px; padding: 16px 14px 14px; }
+.bstatus { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.bstatus b { color: var(--hot); font-size: 1.2rem; }
+.btimer { font-family: var(--mono); font-size: 1.9rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.btimer.low { color: var(--spot); }
+.btimer.count { color: var(--hot); }
+.bgrid { position: relative; display: grid; gap: 8px; width: min(100%, 50vh); margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.bgrid.s4 { grid-template-columns: repeat(4, 1fr); }
+.bgrid.s5 { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.tile { aspect-ratio: 1; display: grid; place-items: center; background: var(--ink); color: var(--board); border-radius: 14px; font-family: var(--display); font-size: clamp(1.5rem, 8.5vw, 2.3rem); line-height: 1; box-shadow: 0 5px 0 #a99f7d; cursor: pointer; transition: transform .06s, background .06s; }
+.s5 .tile { font-size: clamp(1.2rem, 6.6vw, 1.85rem); border-radius: 11px; box-shadow: 0 4px 0 #a99f7d; }
+.tile.qu { font-size: clamp(1.15rem, 6.6vw, 1.8rem); }
+.s5 .tile.qu { font-size: clamp(.95rem, 5.2vw, 1.45rem); }
+.tile.on { background: var(--hot); box-shadow: 0 5px 0 var(--hot-deep); transform: translateY(2px); }
+.tile.last { background: var(--spot); color: #fff; box-shadow: 0 5px 0 var(--spot-deep); }
+.bover { position: absolute; inset: -4px; display: grid; place-items: center; background: #0e1d15d9; border-radius: 16px; font-family: var(--display); font-size: clamp(1.8rem, 9vw, 2.6rem); color: var(--hot); text-shadow: 0 4px 0 var(--shadow); pointer-events: none; }
+.bentry { display: flex; gap: 8px; }
+.bentry .field { flex: 1; min-width: 0; letter-spacing: .08em; text-transform: uppercase; }
+.bentry .field.bad { border-color: var(--spot); color: var(--spot); }
+.bentry .btn { width: auto; padding: 12px 18px; }
+.btoast { min-height: 1.4em; text-align: center; font-weight: 800; transition: opacity .4s; }
+.btoast.good { color: var(--good); }
+.btoast.bad { color: var(--spot); }
+.btoast.gone { opacity: 0; }
+.wcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+.wcols.one { grid-template-columns: 1fr; }
+.wcols.one ul { columns: 2; column-gap: 16px; }
+.wcol { background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border: 2px solid var(--line); border-radius: 16px; padding: 10px 10px 6px; min-width: 0; box-shadow: 0 4px 0 var(--shadow); }
+.wcol.mine { border-color: var(--hot); }
+.wcol-head { display: flex; justify-content: space-between; gap: 6px; font-weight: 800; margin-bottom: 4px; }
+.wcol-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wcol-head span { color: var(--hot); font-family: var(--mono); }
+.wcol ul { list-style: none; margin: 0; padding: 0; max-height: 32vh; overflow-y: auto; overscroll-behavior: contain; }
+.wcol li { display: flex; justify-content: space-between; gap: 6px; font-family: var(--mono); font-size: .86rem; padding: 4px 0; border-top: 1px solid var(--line); break-inside: avoid; }
+.wcol li span { overflow-wrap: anywhere; }
+.wcol li small { color: var(--muted); }
+.wcol li.solo span::after { content: " ★"; color: var(--hot); }
+.wcol li.none { color: var(--muted); font-family: var(--body); border: 0; }
+.bothers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bothers li { display: flex; justify-content: space-between; gap: 10px; background: var(--shadow); border-radius: 12px; padding: 8px 12px; }
+.bothers li span { color: var(--muted); font-size: .9rem; }
+.chip.static { color: var(--ink); font-family: var(--mono); cursor: default; }
+.bgrid.small { width: min(60%, 220px); gap: 5px; }
+.bgrid.small .tile { font-size: 1.1rem; border-radius: 8px; box-shadow: 0 3px 0 #a99f7d; cursor: default; }
