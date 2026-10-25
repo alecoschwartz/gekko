@@ -7,7 +7,8 @@ const BOGGLE_DICE = {
   5: ["AAAFRS","AAEEEE","AAFIRS","ADENNN","AEEEEM","AEEGMU","AEGMNN","AFIRSY","BJKQXZ","CCENST","CEIILT","CEILPT","CEIPST","DDHNOT","DHHLOR","DHLNOR","DHLNOR","EIIITT","EMOTTT","ENSSSU","FIPRSY","GORRVW","IPRRRY","NOOTUW","OOOTTU"]
 };
 const BOGGLE_DEFAULTS = { mode: "claim", size: 4, mins: 3, cancel: false, min: 3, reuse: false };
-const wordPts = w => w.length <= 4 ? 1 : w.length === 5 ? 2 : w.length === 6 ? 3 : w.length === 7 ? 5 : 11;
+// 3 letters: 1, 4: 2, 5: 4, 6: 6, then +2 for each extra letter.
+const wordPts = w => w.length <= 3 ? 1 : w.length === 4 ? 2 : 2 * w.length - 6;
 const sortWords = ws => ws.slice().sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const cleanWord = s => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
@@ -369,6 +370,6 @@ function bPatch() {
 const boggleRules = () => `<section class="card"><div class="label">How Goggle works</div><ul class="rules">
   <li>Everyone gets the same grid. Make words from letters that touch, diagonals included. Each tile once per word, unless the host allows reusing letters.</li>
   <li>Swipe across the tiles, tap them one at a time (tap the last one again to enter), or type.</li>
-  <li>Words need 3+ letters unless the host sets a longer minimum. Tap ↻ to turn the board on your phone. Points: 3–4 letters <b>1</b>, 5 <b>2</b>, 6 <b>3</b>, 7 <b>5</b>, 8+ <b>11</b>.</li>
+  <li>Words need 3+ letters unless the host sets a longer minimum. Tap ↻ to turn the board on your phone. Points: 3 letters <b>1</b>, 4 <b>2</b>, 5 <b>4</b>, 6 <b>6</b>, then <b>+2</b> for each extra letter (7 is 8, 8 is 10…).</li>
   <li><b>First to find it:</b> once someone gets a word, nobody else can, and everyone sees everyone's lists live.</li>
   <li><b>Everyone finds their own:</b> lists are revealed at the end. With <b>Cancel out</b> on, a word two or more people found scores for nobody. Otherwise every word you find counts.</li></ul></section>`;
