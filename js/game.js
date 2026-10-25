@@ -2,13 +2,12 @@
 // The host keeps the real game state and sends each player only what they're allowed to see.
 // Phones talk through a public MQTT relay over a secure web connection, so the site itself stays static.
 
-// Two free public relays. Every phone connects to both and sends everything through both,
-// so the game keeps working if one of them is down or blocked on someone's network.
+// Free public relays: use the first one, and switch to the next only if it can't be reached.
 const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-25b";
+const VERSION = "2026-10-25c";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -24,44 +23,37 @@ const joinLink = code => location.origin + location.pathname + "#" + code;
 const rid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 const topic = (code, rest) => TOPIC_ROOT + code + "/" + rest;
 const parse = buf => { try { return JSON.parse(buf.toString()); } catch (e) { return null; } };
-// Looks like a single MQTT client to the rest of the code.
+// Looks like a single MQTT client to the rest of the code. If a relay can't be reached (or drops for
+// 15s mid-game), it moves to the next one; every phone follows the same rule, so they all end up on the same relay.
+// If none work, it fires "down".
 function connectBroker() {
-  const subs = new Map(), handlers = { connect: [], message: [], offline: [] }, seen = new Map();
+  const subs = new Map(), handlers = { connect: [], message: [], offline: [], down: [] };
   const emit = (ev, ...args) => handlers[ev].forEach(f => f(...args));
-  let up = false;
-  const anyUp = () => clients.some(c => c.connected);
-  const clients = BROKERS.map(url => {
-    const c = mqtt.connect(url, { clientId: "gk-" + rid(), reconnectPeriod: 3000, connectTimeout: 10000, clean: true });
-    c.on("connect", () => {
-      for (const [t, o] of subs) c.subscribe(t, o.opts);
-      if (!up) { up = true; emit("connect"); }
-    });
-    // The same message usually arrives once from each relay; only pass the first one on.
-    c.on("message", (t, m) => {
-      const key = t + "\n" + m.toString(), now = Date.now();
-      if (now - (seen.get(key) || 0) < 8000) return;
-      seen.set(key, now);
-      if (seen.size > 500) for (const [k, at] of seen) if (now - at > 8000) seen.delete(k);
-      emit("message", t, m);
-    });
-    const down = () => { if (up && !anyUp()) { up = false; emit("offline"); } };
-    c.on("offline", down); c.on("close", down);
+  let c = null, idx = 0, tries = 0, timer = null, wasUp = false;
+  const drop = () => { if (c) { c.removeAllListeners(); c.on("error", () => {}); c.end(true); c = null; } };
+  const open = i => {
+    drop(); clearTimeout(timer);
+    idx = i; wasUp = false;
+    c = mqtt.connect(BROKERS[i], { clientId: "gk-" + rid(), reconnectPeriod: 3000, connectTimeout: 6000, clean: true });
+    timer = setTimeout(next, 7000);
+    c.on("connect", () => { clearTimeout(timer); tries = 0; wasUp = true; for (const [t, o] of subs) c.subscribe(t, o); emit("connect"); });
+    c.on("message", (t, m) => emit("message", t, m));
+    // Only a relay that was working gets 15s to come back; one that never connected keeps its first 7s deadline.
+    c.on("offline", () => { emit("offline"); if (wasUp) { wasUp = false; clearTimeout(timer); timer = setTimeout(next, 15000); } });
     c.on("error", () => {});
-    return c;
-  });
+  };
+  const next = () => {
+    if (++tries >= BROKERS.length) { tries = 0; drop(); emit("down"); return; }
+    open((idx + 1) % BROKERS.length);
+  };
+  open(0);
   return {
-    get connected() { return anyUp(); },
+    get connected() { return !!c && c.connected; },
     on(ev, f) { handlers[ev].push(f); },
-    subscribe(t, opts, cb) {
-      subs.set(t, { opts });
-      let called = false;
-      const live = clients.filter(c => c.connected);
-      if (!live.length && cb) { called = true; cb(); }
-      live.forEach(c => c.subscribe(t, opts, () => { if (!called && cb) { called = true; cb(); } }));
-    },
-    unsubscribe(t) { subs.delete(t); clients.forEach(c => { if (c.connected) c.unsubscribe(t); }); },
-    publish(t, msg, opts) { clients.forEach(c => { if (c.connected) c.publish(t, msg, opts); }); },
-    reconnect() { clients.forEach(c => { if (!c.connected) try { c.reconnect(); } catch (e) {} }); }
+    subscribe(t, opts, cb) { subs.set(t, opts); if (c && c.connected) c.subscribe(t, opts, cb); else if (cb) cb(); },
+    unsubscribe(t) { subs.delete(t); if (c && c.connected) c.unsubscribe(t); },
+    publish(t, msg, opts) { if (c && c.connected) c.publish(t, msg, opts); },
+    reconnect() { tries = 0; open(0); }
   };
 }
 
@@ -86,7 +78,8 @@ const host = {
       else this.pickCode(!!saved, () => { this.ready = true; this.listen(); });
     });
     c.on("message", (t, m) => this.onMessage(t, m));
-    c.on("offline", () => { ui.err = "Can't reach the game server. Retrying…"; render(); });
+    c.on("offline", () => { if (ui.view) { ui.err = "Can't reach the relay server. Retrying…"; render(); } });
+    c.on("down", () => { if (ui.view) ui.err = "Relay server down. Try again later."; else { ui.err = ""; ui.status = "noserver"; } render(); });
   },
 
   // Make sure no other live room is using this code.
@@ -410,14 +403,13 @@ const guest = {
     ui.status = "opening"; render();
     const c = this.client = connectBroker();
     c.on("connect", () => {
-      clearTimeout(this.noServer);
       if (ui.status === "lost" || ui.status === "noserver") ui.status = ui.view ? "live" : "opening";
       c.subscribe(topic(code, "down/" + this.cid), { qos: 1 }, () => this.join());
       render();
     });
     c.on("message", (t, m) => { const msg = parse(m); if (msg) this.onMsg(msg); });
     c.on("offline", () => { if (ui.status !== "rejected") { ui.status = ui.view ? "lost" : (ui.status === "noserver" ? "noserver" : "opening"); render(); } });
-    this.noServer = setTimeout(() => { if (!c.connected) { ui.status = "noserver"; render(); } }, 12000);
+    c.on("down", () => { if (ui.status === "rejected") return; if (ui.view) ui.err = "Relay server down. Try again later."; else ui.status = "noserver"; render(); });
     clearInterval(this.pingTimer);
     this.pingTimer = setInterval(() => this.publish({ t: "ping" }), 10000);
   },
@@ -505,13 +497,9 @@ const views = {
 
   noserver() {
     return head("") + `<section class="card">
-      <h2>Can't reach the game server</h2>
-      <p class="muted">This phone can't connect to the server that passes messages between phones. It's still trying in the background. Usually one of these fixes it:</p>
-      <ul class="rules">
-        <li>Switch networks: turn Wi-Fi off to use mobile data, or the other way around.</li>
-        <li>If you opened the link from Instagram, Snapchat, Messenger or another app, open it in Safari or Chrome instead.</li>
-        <li>Turn off any VPN or ad blocker.</li>
-      </ul>
+      <h2>Relay server down</h2>
+      <p class="muted">Gecko couldn't reach either of the servers that pass messages between phones. Try again later.</p>
+      <p class="muted small">If it keeps happening only on this phone, try switching between Wi-Fi and mobile data, or turn off any VPN.</p>
       <button class="btn" data-act="retry">Try again</button>
       <button class="btn ghost" data-act="quit">Back</button>
     </section>`;
@@ -844,7 +832,7 @@ const actions = {
     if (location.hash !== "#" + code) history.replaceState(null, "", "#" + code);
     guest.start(code, n);
   },
-  retry() { ui.status = "opening"; render(); if (guest.client) guest.client.reconnect(); },
+  retry() { ui.status = "opening"; ui.err = ""; render(); const c = guest.client || host.client; if (c) c.reconnect(); },
   // A new URL skips the browser's cached copy of the page.
   hardreload() { location.replace(location.pathname + "?r=" + Date.now() + (guest.code ? "#" + guest.code : location.hash)); },
   rejoin() { if (guest.active) { ui.status = "opening"; guest.join(); } else location.reload(); },

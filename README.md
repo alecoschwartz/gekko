@@ -6,7 +6,7 @@ A party game for phones. Everyone gets the secret word except one player, the Ge
 
 One person taps **Start a new room** and gets a 4-letter code like `FROG`. Everyone else opens the same page, types their name and the code, and joins. The host's phone runs the game, so keep it open while you play.
 
-Phones pass messages through two free public MQTT relays at once (broker.emqx.io and broker.hivemq.com, so one can be down) over a secure web connection. There's no server or database of our own, and the site is plain static files.
+Phones pass messages through a free public MQTT relay (broker.emqx.io, falling back to broker.hivemq.com if it can't be reached) over a secure web connection. There's no server or database of our own, and the site is plain static files.
 
 ## Goggle
 
