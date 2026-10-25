@@ -2,11 +2,13 @@
 // The host keeps the real game state and sends each player only what they're allowed to see.
 // Phones talk through a public MQTT relay over a secure web connection, so the site itself stays static.
 
-const BROKER = "wss://broker.emqx.io:8084/mqtt";
+// Two free public relays. Every phone connects to both and sends everything through both,
+// so the game keeps working if one of them is down or blocked on someone's network.
+const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-25a";
+const VERSION = "2026-10-25b";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -22,7 +24,46 @@ const joinLink = code => location.origin + location.pathname + "#" + code;
 const rid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 const topic = (code, rest) => TOPIC_ROOT + code + "/" + rest;
 const parse = buf => { try { return JSON.parse(buf.toString()); } catch (e) { return null; } };
-const connectBroker = () => mqtt.connect(BROKER, { clientId: "gk-" + rid(), reconnectPeriod: 2000, connectTimeout: 10000, clean: true });
+// Looks like a single MQTT client to the rest of the code.
+function connectBroker() {
+  const subs = new Map(), handlers = { connect: [], message: [], offline: [] }, seen = new Map();
+  const emit = (ev, ...args) => handlers[ev].forEach(f => f(...args));
+  let up = false;
+  const anyUp = () => clients.some(c => c.connected);
+  const clients = BROKERS.map(url => {
+    const c = mqtt.connect(url, { clientId: "gk-" + rid(), reconnectPeriod: 3000, connectTimeout: 10000, clean: true });
+    c.on("connect", () => {
+      for (const [t, o] of subs) c.subscribe(t, o.opts);
+      if (!up) { up = true; emit("connect"); }
+    });
+    // The same message usually arrives once from each relay; only pass the first one on.
+    c.on("message", (t, m) => {
+      const key = t + "\n" + m.toString(), now = Date.now();
+      if (now - (seen.get(key) || 0) < 8000) return;
+      seen.set(key, now);
+      if (seen.size > 500) for (const [k, at] of seen) if (now - at > 8000) seen.delete(k);
+      emit("message", t, m);
+    });
+    const down = () => { if (up && !anyUp()) { up = false; emit("offline"); } };
+    c.on("offline", down); c.on("close", down);
+    c.on("error", () => {});
+    return c;
+  });
+  return {
+    get connected() { return anyUp(); },
+    on(ev, f) { handlers[ev].push(f); },
+    subscribe(t, opts, cb) {
+      subs.set(t, { opts });
+      let called = false;
+      const live = clients.filter(c => c.connected);
+      if (!live.length && cb) { called = true; cb(); }
+      live.forEach(c => c.subscribe(t, opts, () => { if (!called && cb) { called = true; cb(); } }));
+    },
+    unsubscribe(t) { subs.delete(t); clients.forEach(c => { if (c.connected) c.unsubscribe(t); }); },
+    publish(t, msg, opts) { clients.forEach(c => { if (c.connected) c.publish(t, msg, opts); }); },
+    reconnect() { clients.forEach(c => { if (!c.connected) try { c.reconnect(); } catch (e) {} }); }
+  };
+}
 
 /* ---------------- Host: the authoritative game ---------------- */
 
@@ -100,7 +141,7 @@ const host = {
     if (msg && typeof msg === "object" && typeof msg.from === "string") this.receive(msg, msg.from);
   },
 
-  sendTo(cid, msg) { if (this.client.connected) this.client.publish(topic(this.code, "down/" + cid), JSON.stringify(msg), { qos: 1 }); },
+  sendTo(cid, msg) { if (this.client.connected) this.client.publish(topic(this.code, "down/" + cid), JSON.stringify({ ...msg, mid: rid() }), { qos: 1 }); },
 
   onlineNames() {
     const now = Date.now();
@@ -407,7 +448,7 @@ const guest = {
     else if (msg.t === "rejoin") this.join();
   },
 
-  publish(msg) { if (this.client && this.client.connected) this.client.publish(topic(this.code, "up"), JSON.stringify({ ...msg, from: this.cid }), { qos: 1 }); },
+  publish(msg) { if (this.client && this.client.connected) this.client.publish(topic(this.code, "up"), JSON.stringify({ ...msg, from: this.cid, mid: rid() }), { qos: 1 }); },
 
   send(a) { this.publish({ t: "act", a }); }
 };
