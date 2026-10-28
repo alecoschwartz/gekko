@@ -256,3 +256,24 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .chip.static { color: var(--ink); font-family: var(--mono); cursor: default; }
 .bgrid.small { width: min(60%, 220px); gap: 5px; }
 .bgrid.small .tile { font-size: 1.1rem; border-radius: 8px; box-shadow: 0 3px 0 #a99f7d; cursor: default; }
+
+/* ---------- Fibber ---------- */
+.ftext { font-size: clamp(1.35rem, 6vw, 1.8rem); }
+.ftext .blank { color: var(--hot); letter-spacing: .05em; }
+.fmsg { margin: 0; min-height: 1.3em; font-weight: 800; }
+.fmsg.good { color: var(--good); }
+.fmsg.bad { color: var(--spot); }
+.fopts { display: grid; gap: 10px; }
+.fopt { text-align: left; font: inherit; font-weight: 800; font-size: 1.15rem; color: var(--ink); background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border: 2px solid var(--line); border-radius: 18px; padding: 16px 18px; box-shadow: 0 5px 0 var(--shadow); cursor: pointer; overflow-wrap: anywhere; transition: transform .08s; }
+.fopt:active { transform: translateY(3px); }
+.fopt[aria-pressed="true"] { background: var(--hot); color: var(--hot-ink); border-color: var(--hot); box-shadow: 0 5px 0 var(--hot-deep); }
+.fopt.mine { opacity: .5; cursor: default; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.fopt.mine small { font-weight: 600; color: var(--muted); }
+.ftruth { font-size: clamp(1.8rem, 9vw, 2.8rem); }
+.flies { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.flies li { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--shadow); border-radius: 14px; padding: 10px 14px; }
+.flies li.you { box-shadow: inset 0 0 0 2px var(--hot); }
+.flies li > div { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.flies li > span { text-align: right; font-size: .9rem; }
+.flies em { font-style: normal; color: var(--hot); font-weight: 800; }
+.bentry .field.fib { text-transform: none; letter-spacing: normal; }

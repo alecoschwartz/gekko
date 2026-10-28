@@ -18,3 +18,7 @@ The host can switch the lobby to **Goggle**, a Boggle-style word hunt. Everyone 
 The host can also set the shortest word allowed (3–5 letters) and whether a word may reuse a tile. Each player can rotate the board on their own phone. Results show the best (longest) word anyone found.
 
 Words are checked on the host's phone against the ENABLE word list (public domain), in `data/words.txt`, with a few slurs removed.
+
+## Fibber
+
+A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writes a fake answer, then votes for the one they think is real. +2 for finding the truth, +1 for each player your fib fools. The facts are in `js/fibs.js`.
