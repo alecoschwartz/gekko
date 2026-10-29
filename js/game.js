@@ -7,11 +7,11 @@ const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-28b";
+const VERSION = "2026-10-29a";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
-const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {} };
+const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {}, qscores: {} };
 // Lobby settings and scores that carry over from round to round.
-const settingsOf = G => ({ scores: G.scores, cats: G.cats, qPer: G.qPer, usedQs: G.usedQs || {}, game: G.game || "gecko", bset: G.bset || { ...BOGGLE_DEFAULTS }, bscores: G.bscores || {}, fset: G.fset || { ...FIB_DEFAULTS }, fscores: G.fscores || {}, usedFibs: G.usedFibs || [] });
+const settingsOf = G => ({ scores: G.scores, cats: G.cats, qPer: G.qPer, usedQs: G.usedQs || {}, game: G.game || "gecko", bset: G.bset || { ...BOGGLE_DEFAULTS }, bscores: G.bscores || {}, fset: G.fset || { ...FIB_DEFAULTS }, fscores: G.fscores || {}, qscores: G.qscores || {}, usedFibs: G.usedFibs || [], usedQuibs: G.usedQuibs || [] });
 
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -182,7 +182,7 @@ const host = {
         if (who !== this.me) return; const c = G.cats || []; if (!BANK[a.cat]) return; G.cats = c.includes(a.cat) ? c.filter(x => x !== a.cat) : [...c, a.cat]; break; }
       case "allcats": if (who !== this.me) return; G.cats = []; break;
       case "qper": if (who !== this.me || ![1, 2, 3].includes(a.n)) return; G.qPer = a.n; break;
-      case "resetscores": if (G.game === "boggle") G.bscores = {}; else if (G.game === "fib") G.fscores = {}; else { G.scores = {}; G.usedQs = {}; } break;
+      case "resetscores": if (G.game === "boggle") G.bscores = {}; else if (G.game === "fib") { if (isQuib(G)) G.qscores = {}; else G.fscores = {}; } else { G.scores = {}; G.usedQs = {}; } break;
       case "game":
         if (who !== this.me || G.phase !== "lobby" || !["gecko", "boggle", "fib"].includes(a.g)) return;
         G.game = a.g;
@@ -202,6 +202,7 @@ const host = {
       }
       case "bend": if (G.phase === "bplay" && who === this.me) { this.endBoggle(); return; } return;
       case "fn": if (who !== this.me || ![5, 8, 10].includes(a.v)) return; G.fset = { ...FIB_DEFAULTS, ...G.fset, n: a.v }; break;
+      case "fmode": if (who !== this.me || G.phase !== "lobby" || !["fib", "quib"].includes(a.v)) return; G.fset = { ...FIB_DEFAULTS, ...G.fset, mode: a.v }; break;
       case "lie": {
         if (G.phase !== "fwrite" || idx < 0) return;
         const r = fibHost.lie(G, who, a.text);
@@ -359,7 +360,7 @@ const host = {
       nVoted: nVotes, ready: G.ready || [], voteReady: G.voteReady || [], voteRound: G.voteRound || 1, accused: G.accused, myVote: inRound && this.votes[idx] != null ? this.votes[idx] : null,
       game: G.game || "gecko", bset: { ...BOGGLE_DEFAULTS, ...(G.bset || {}) }, bscores: G.bscores || {}
     };
-    v.fset = { ...FIB_DEFAULTS, ...(G.fset || {}) }; v.fscores = G.fscores || {};
+    v.fset = { ...FIB_DEFAULTS, ...(G.fset || {}) }; v.fscores = G.fscores || {}; v.qscores = G.qscores || {};
     if (G.b && (G.phase === "bplay" || G.phase === "bresults")) { v.b = boggleHost.view(G, name, this.bLast[name]); return v; }
     if (G.f && ["fwrite", "fvote", "freveal", "fresults"].includes(G.phase)) { v.f = fibHost.view(G, name, this.fLast[name]); return v; }
     if (inRound && G.phase !== "lobby") {
@@ -559,7 +560,7 @@ const views = {
 
   lobby() {
     const v = ui.view, sel = v.cats, game = v.game, boggle = game === "boggle", fib = game === "fib";
-    const sc = boggle ? v.bscores : fib ? v.fscores : v.scores;
+    const sc = boggle ? v.bscores : fib ? (v.fset.mode === "quib" ? v.qscores : v.fscores) : v.scores;
     const anyScore = v.seats.some(s => sc[s]), enough = v.seats.length >= (boggle ? 1 : fib ? 2 : 3);
     const isHost = host.active, lock = isHost ? "" : "disabled", bs = v.bset;
     return head("Lobby") + `
@@ -577,7 +578,7 @@ const views = {
     </section>
     <section class="card">
       <div class="label">Game</div>
-      <div class="chips">${[["gecko", "Gecko"], ["boggle", "Goggle"], ["fib", "Fibber"]].map(([g, label]) => `<button class="chip" data-act="game" data-v="${g}" ${lock} aria-pressed="${game === g}">${label}</button>`).join("")}</div>
+      <div class="chips">${[["gecko", "Gecko"], ["boggle", "Goggle"], ["fib", "Fibber / Quibber"]].map(([g, label]) => `<button class="chip" data-act="game" data-v="${g}" ${lock} aria-pressed="${game === g}">${label}</button>`).join("")}</div>
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the game.</p>`}
     </section>
     ${boggle ? `<section class="card">
@@ -920,6 +921,7 @@ const actions = {
   bsubmit: () => bSubmit(),
   bend: () => act({ type: "bend" }),
   fn: el => act({ type: "fn", v: +el.dataset.v }),
+  fmode: el => act({ type: "fmode", v: el.dataset.v }),
   fsubmit: () => fibSubmit(),
   fvotenow: () => act({ type: "fvotenow" }),
   fpick: el => act({ type: "fpick", id: el.dataset.v }),

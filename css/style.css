@@ -277,3 +277,4 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .flies li > span { text-align: right; font-size: .9rem; }
 .flies em { font-style: normal; color: var(--hot); font-weight: 800; }
 .bentry .field.fib { text-transform: none; letter-spacing: normal; }
+.flies li.top { background: color-mix(in srgb, var(--hot) 18%, var(--shadow)); }

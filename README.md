@@ -21,4 +21,6 @@ Words are checked on the host's phone against the ENABLE word list (public domai
 
 ## Fibber
 
-A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writes a fake answer, then votes for the one they think is real. +2 for finding the truth, +1 for each player your fib fools. The facts are in `js/fibs.js`.
+A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writes a fake answer, then votes for the one they think is real. +2 for finding the truth, +1 for each player your fib fools. The 1,500+ facts are in `js/fibs.js`, each with the source it was checked against.
+
+**Quibber** is a setting inside Fibber (Answers: Funniest answer). Same flow, but the prompts have no right answer: everyone writes something funny and votes for their favorite. +1 per vote, +2 bonus if everyone else picks yours. The prompts are in `js/quibs.js`.
