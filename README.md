@@ -24,3 +24,7 @@ Words are checked on the host's phone against the ENABLE word list (public domai
 A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writes a fake answer, then votes for the one they think is real. +2 for finding the truth, +1 for each player your fib fools. The 1,500+ facts are in `js/fibs.js`, each with the source it was checked against.
 
 **Quibber** is a setting inside Fibber (Answers: Funniest answer). Same flow, but the prompts have no right answer: everyone writes something funny and votes for their favorite. +1 per vote, +2 bonus if everyone else picks yours. The prompts are in `js/quibs.js`.
+
+## Scraps
+
+Pictionary with cut-out pieces. Players take turns building a secret word (picked from two options) out of shapes and a few body-part/symbol stickers: drag to move, handles to resize and rotate, tap to recolor, flip, copy or layer. Everyone else watches it come together live and types guesses; near misses say "so close" privately, and one letter of the word appears halfway through. Guessers score 3/2/1 by order, the builder 1 per correct guesser. Words and pieces are in `js/scraps.js`.
