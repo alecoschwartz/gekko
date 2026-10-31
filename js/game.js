@@ -7,7 +7,7 @@ const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-30b";
+const VERSION = "2026-10-30c";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {}, qscores: {}, sset: { ...SCRAPS_DEFAULTS }, sscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -223,7 +223,7 @@ const host = {
       case "spick": if (G.phase !== "spick" || who !== G.s.builder || a.ti !== G.s.ti) return; scrapsHost.pick(G, a.k === 1 ? 1 : 0); break;
       case "spieces": {
         if (G.phase !== "splay" || who !== G.s.builder) return;
-        G.s.pieces = cleanPieces(a.p);
+        G.s.pieces = cleanPieces(a.p); G.s.strokes = cleanStrokes(a.d);
         // Piece updates stream in several times a second; skip saving to storage for each one.
         this.broadcast(); return;
       }
@@ -233,6 +233,8 @@ const host = {
         if (r) this.sLast[who] = { ...r, n: ++this.bSeq, at: Date.now() };
         break;
       }
+      case "smode": if (who !== this.me || !["pieces", "pen"].includes(a.v)) return; G.sset = { ...SCRAPS_DEFAULTS, ...G.sset, mode: a.v }; break;
+      case "srate": if (G.phase !== "splay" || who !== G.s.builder || a.ti !== G.s.ti) return; scrapsHost.rate(G, a.id, a.v); break;
       case "snext": if (G.phase !== "sreveal" || a.ti !== G.s.ti) return; scrapsHost.next(G); break;
       case "lie": {
         if (G.phase !== "fwrite" || idx < 0) return;

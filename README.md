@@ -30,3 +30,7 @@ A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writ
 ## Scraps
 
 Pictionary with cut-out pieces. Players take turns building a secret word (picked from two options) out of shapes and a few body-part/symbol stickers: drag to move, handles to resize and rotate, tap to recolor, flip, copy or layer. Everyone else watches it come together live and types guesses; near misses say "so close" privately, and one letter of the word appears halfway through. Guessers score 3/2/1 by order, the builder 1 per correct guesser. Words and pieces are in `js/scraps.js`.
+
+**Build with: Pen** turns it into plain Pictionary: draw with 12 colors, an eraser and 4 pen sizes. In both modes the pad is bigger than the screen: pinch (or the −/+ buttons) to zoom out, drag with two fingers (or on empty space, with pieces) to move around. Watchers' screens zoom to fit whatever has been drawn. The builder sees the latest guesses under the picture and can give each a 👍 (warmer) or 👎 (colder), which the guessers see.
+
+While dragging or drawing, the builder's phone only updates the piece or stroke being moved, and sends the picture to everyone else about every 0.7 s (and immediately on release), so watchers see it move in small jumps.
