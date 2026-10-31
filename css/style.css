@@ -317,7 +317,16 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .srate button { border: 0; background: transparent; font-size: 1.25rem; line-height: 1; padding: 6px 8px; border-radius: 10px; opacity: .4; cursor: pointer; }
 .srate button[aria-pressed="true"] { opacity: 1; background: var(--panel); }
 .srated { flex: none; font-size: 1.1rem; }
-.squick { margin-top: -6px; max-height: none; }
+.sfloat { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sbub { position: absolute; bottom: 0; max-width: 62%; display: flex; align-items: center; gap: 4px; padding: 5px 6px 5px 12px; border-radius: 16px; background: rgba(20, 38, 30, .88); color: #fff; font-size: .95rem; line-height: 1.2; box-shadow: 0 3px 10px rgba(0,0,0,.25); overflow-wrap: anywhere; animation: sfloatup 7s linear forwards; }
+.sbub.l { left: 8px; } .sbub.r { right: 8px; }
+.sbub.ok { background: rgba(46, 140, 80, .92); padding-right: 12px; }
+.sbub.close { background: rgba(200, 120, 20, .92); padding-right: 12px; }
+.sbub b { margin-right: 4px; }
+.sbub .srate { pointer-events: auto; }
+.sbub .srate button { opacity: .55; padding: 6px 7px; }
+.sbub .srate button[aria-pressed="true"] { opacity: 1; background: rgba(255,255,255,.25); }
+@keyframes sfloatup { 0% { transform: translateY(100%); opacity: 0; } 6% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(calc(-1 * var(--sfh, 330px))); opacity: 0; } }
 .szoom { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
 .szoom button { width: 38px; height: 38px; border-radius: 10px; border: 2px solid #c8c2ad; background: rgba(253, 251, 243, .92); color: #1a1a1a; font-weight: 800; font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0; }
 .stk { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }

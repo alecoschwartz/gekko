@@ -288,6 +288,7 @@ function noteScrapsView(v) {
 function scrapsReset(v) {
   ui.sPieces = v && v.s ? cleanPieces(v.s.pieces) : []; ui.sStrokes = v && v.s ? cleanStrokes(v.s.strokes) : [];
   ui.sSel = -1; ui.sHist = []; ui.sMsg = null; ui.sDraft = ""; ui.sVb = { x: 0, y: 0, w: 1000 };
+  ui.sSeenFid = v && v.s ? Math.max(0, ...(v.s.feed || []).map(f => f.id || 0)) : 0;
   if (!ui.sPen) ui.sPen = { c: SCRAP_COLORS.length - 1, s: SCRAP_PEN_SIZES[1] };
 }
 const scrapPen = () => !!(ui.view && ui.view.s && ui.view.s.mode === "pen");
@@ -335,7 +336,11 @@ const scrapsActions = {
   spick: el => act({ type: "spick", k: +el.dataset.v, ti: ui.view.s.ti }),
   snext: () => act({ type: "snext", ti: ui.view.s.ti }),
   sguess: () => scrapsGuess(),
-  srate: el => act({ type: "srate", id: +el.dataset.id, v: +el.dataset.v, ti: ui.view.s.ti }),
+  srate(el) {
+    const on = el.getAttribute("aria-pressed") !== "true";
+    el.parentElement.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === el && on ? "true" : "false"));
+    act({ type: "srate", id: +el.dataset.id, v: +el.dataset.v, ti: ui.view.s.ti });
+  },
   szoom: el => sZoom(el.dataset.v),
   spenc(el) { ui.sPen.c = +el.dataset.v; sDraw(); },
   spens(el) { ui.sPen.s = +el.dataset.v; sDraw(); },
@@ -531,7 +536,7 @@ function scrapsPatch() {
   const v = ui.view, s = v.s;
   // Only rewrite what changed, so a thumb tap isn't swallowed by its button being replaced.
   const set = (id, html) => { const el = document.getElementById(id); if (el && el._h !== html) { el.innerHTML = html; el._h = html; } };
-  set("sfeed", scrapsFeed()); set("squick", scrapsFeed(3)); set("sstatus", scrapsStatus()); set("smsg", scrapsMsgHtml());
+  set("sfeed", scrapsFeed()); scrapsFloat(); set("sstatus", scrapsStatus()); set("smsg", scrapsMsgHtml());
   if (!s.isBuilder) {
     const cv = document.getElementById("scv"); if (cv) { cv.innerHTML = scrapsInner(s.pieces, s.strokes); cv.setAttribute("viewBox", vbStr(scrapsFit(s.pieces, s.strokes))); }
   }
@@ -539,7 +544,32 @@ function scrapsPatch() {
 }
 const scrapsKey = v => v.s ? `${v.s.ti}|${v.s.word ? 1 : 0}|${v.s.isBuilder || (v.s.guessed || []).includes(v.me) ? 1 : 0}` : "";
 
+// Builder only: each new guess floats up over the picture with thumbs to tap as it goes by.
+function scrapsFloat() {
+  const v = ui.view, s = v && v.s, box = document.getElementById("sfloat");
+  if (!s || !s.isBuilder || !box) return;
+  box.style.setProperty("--sfh", box.clientHeight + "px");
+  for (const f of s.feed) {
+    if (f.id == null || f.id <= (ui.sSeenFid || 0)) continue;
+    ui.sSeenFid = f.id;
+    const el = document.createElement("div");
+    el.className = `sbub ${f.ok ? "ok" : f.close ? "close" : ""} ${(ui.sLane = !ui.sLane) ? "l" : "r"}`;
+    el.innerHTML = f.ok ? `<span><b>${esc(f.p)}</b> got it! 🎉</span>` : f.close ? `<span><b>${esc(f.p)}</b> is close!</span>`
+      : `<span><b>${esc(f.p)}</b> ${esc(f.text)}</span><span class="srate">${[[1, "👍"], [-1, "👎"]].map(([n, ic]) => `<button data-tap="srate" data-id="${f.id}" data-v="${n}" aria-pressed="false" aria-label="${n > 0 ? "Warmer" : "Colder"}">${ic}</button>`).join("")}</span>`;
+    el.addEventListener("animationend", () => el.remove());
+    box.appendChild(el);
+  }
+}
+// Thumbs on a floating guess act on touch-down: the bubble keeps moving, so waiting for a click could miss it.
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest && e.target.closest('.sbub [data-tap="srate"]');
+  if (!b || !ui.view || !ui.view.s) return;
+  e.preventDefault();
+  scrapsActions.srate(b);
+});
+
 function scrapsAfterRender() {
+  scrapsFloat();
   const sIn = document.getElementById("sIn");
   if (sIn) {
     sIn.addEventListener("input", () => { ui.sDraft = sIn.value; });
@@ -583,8 +613,8 @@ const scrapsViews = {
     if (s.isBuilder) return head(scrapStep(v)) + `
       <section class="card sbar"><div><div class="label">Build this</div><div class="sbuild">${esc(s.word.toUpperCase())}</div></div>${timer}</section>
       <div class="scwrap">${scrapsSvg(ui.sPieces, { id: "scv", cls: "edit", sel: ui.sSel, strokes: ui.sStrokes, vb: ui.sVb })}
+        <div class="sfloat" id="sfloat"></div>
         <div class="szoom"><button data-act="szoom" data-v="out" aria-label="Zoom out">−</button><button data-act="szoom" data-v="in" aria-label="Zoom in">+</button><button data-act="szoom" data-v="reset" aria-label="Reset zoom">⟲</button></div></div>
-      <ul class="sfeed squick" id="squick">${scrapsFeed(3)}</ul>
       ${s.mode === "pen" ? "" : `<div class="spal" aria-label="Pieces">${SCRAP_PALETTE.map((it, i) => `<button class="spc" data-act="sadd" data-v="${i}" aria-label="Add piece">${scrapThumb(it)}</button>`).join("")}</div>`}
       <section class="card stools" id="stools">${scrapTools()}</section>
       <p class="smsg center-text" id="smsg">${scrapsMsgHtml()}</p>
@@ -647,7 +677,7 @@ function scrapsLobby(v, lock, isHost) {
     <section class="card"><div class="label">How Scraps works</div><ul class="rules">
       <li>Players take turns building. The builder secretly picks one of two words.</li>
       <li>${pen ? "Draw it with the pen: pick a color and size, and use the eraser or Undo to fix mistakes." : "Build it out of shapes and stickers: drag to move, use the handles to resize and rotate, tap a piece to recolor or flip it."} No letters. Pinch to zoom out if you need more room.</li>
-      <li>Give guesses a 👍 if they're getting warmer or a 👎 if they're way off.</li>
+      <li>Guesses float up over the builder's picture. Tap 👍 if they're getting warmer or 👎 if they're way off.</li>
       <li>Everyone else watches the picture come together live and types guesses. A letter of the word shows up halfway through.</li>
       <li>Guessers get <b>3</b> for first, <b>2</b> for second, <b>1</b> after that. The builder gets <b>1</b> for each person who gets it.</li></ul></section>`;
 }
