@@ -7,7 +7,7 @@ const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-10-30a";
+const VERSION = "2026-10-30b";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
 const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {}, qscores: {}, sset: { ...SCRAPS_DEFAULTS }, sscores: {} };
 // Lobby settings and scores that carry over from round to round.
@@ -216,6 +216,7 @@ const host = {
       }
       case "bend": if (G.phase === "bplay" && who === this.me) { this.endBoggle(); return; } return;
       case "fn": if (who !== this.me || ![5, 8, 10].includes(a.v)) return; G.fset = { ...FIB_DEFAULTS, ...G.fset, n: a.v }; break;
+      case "fbots": if (who !== this.me || !FIB_BOT_CHOICES.includes(a.v)) return; G.fset = { ...FIB_DEFAULTS, ...G.fset, bots: a.v }; break;
       case "fmode": if (who !== this.me || G.phase !== "lobby" || !["fib", "quib"].includes(a.v)) return; G.fset = { ...FIB_DEFAULTS, ...G.fset, mode: a.v }; break;
       case "sturns": if (who !== this.me || ![1, 2, 3].includes(a.v)) return; G.sset = { ...SCRAPS_DEFAULTS, ...G.sset, turns: a.v }; break;
       case "ssecs": if (who !== this.me || ![60, 90, 120].includes(a.v)) return; G.sset = { ...SCRAPS_DEFAULTS, ...G.sset, secs: a.v }; break;
@@ -963,6 +964,7 @@ const actions = {
   bend: () => act({ type: "bend" }),
   fn: el => act({ type: "fn", v: +el.dataset.v }),
   fmode: el => act({ type: "fmode", v: el.dataset.v }),
+  fbots: el => act({ type: "fbots", v: +el.dataset.v }),
   fsubmit: () => fibSubmit(),
   fvotenow: () => act({ type: "fvotenow" }),
   fpick: el => act({ type: "fpick", id: el.dataset.v }),

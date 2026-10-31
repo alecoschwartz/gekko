@@ -25,6 +25,8 @@ A bluffing trivia game. Everyone sees a strange-but-true fact with a blank, writ
 
 **Quibber** is a setting inside Fibber (Answers: Funniest answer). Same flow, but the prompts have no right answer: everyone writes something funny and votes for their favorite. +1 per vote, +2 bonus if everyone else picks yours. The prompts are in `js/quibs.js`.
 
+**Bot answers** (None/1/2/3, default 2) mix computer-written answers into the vote: plausible fake answers in Fibber (`js/fibbots.js`, 3 per question) and jokes in Quibber (`js/quibbots.js`, 3 per prompt). Voting for a bot scores nothing. A bot answer that matches a player's answer is skipped.
+
 ## Scraps
 
 Pictionary with cut-out pieces. Players take turns building a secret word (picked from two options) out of shapes and a few body-part/symbol stickers: drag to move, handles to resize and rotate, tap to recolor, flip, copy or layer. Everyone else watches it come together live and types guesses; near misses say "so close" privately, and one letter of the word appears halfway through. Guessers score 3/2/1 by order, the builder 1 per correct guesser. Words and pieces are in `js/scraps.js`.

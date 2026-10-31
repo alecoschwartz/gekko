@@ -1,8 +1,11 @@
 // Fibber: everyone writes a fake answer to an obscure fact, then tries to pick the real one out of all the fakes.
 // Finding the truth is worth 2 points; every player who falls for your fib gives you 1.
 // Quibber (mode "quib") is the same game with no right answer: funny prompts, and every vote for your answer is a point.
+// Bot answers (FIB_BOTS / QUIB_BOTS, keyed by question) are mixed in at voting time to make the truth harder to find.
+// Falling for a bot answer scores nothing.
 
-const FIB_DEFAULTS = { n: 8, mode: "fib" };
+const FIB_DEFAULTS = { n: 8, mode: "fib", bots: 2 };
+const FIB_BOT_CHOICES = [0, 1, 2, 3];
 const FIB_MAX_LEN = 40, QUIB_MAX_LEN = 60;
 const isQuib = G => (G.fset || {}).mode === "quib";
 // Fibs get a capital first letter like the real answers, so a lowercase fake doesn't stand out.
@@ -16,6 +19,9 @@ function singular(w) {
   return w.replace(/s$/, "");
 }
 const isTruth = (fact, s) => [fact.a, ...(fact.alts || [])].some(x => normFib(x) === normFib(s));
+// The real answer is the one option with no author that isn't a bot.
+const isTruthOpt = o => !o.by && !o.bot;
+const BOT_NAME = "Bot";
 
 /* ---------- Host side ---------- */
 
@@ -29,7 +35,7 @@ const fibHost = {
     const qs = deck.slice(0, set.n);
     const total = {}; seats.forEach(p => { total[p] = 0; });
     return { gid: "f" + Date.now().toString(36), phase: "fwrite", players: seats, [key]: [...used.filter(q => !qs.some(f => f.q === q)), ...qs.map(f => f.q)],
-      f: { quib, qs, qi: 0, lies: {}, votes: {}, options: null, round: null, total } };
+      f: { quib, bots: FIB_BOT_CHOICES.includes(set.bots) ? set.bots : FIB_DEFAULTS.bots, qs, qi: 0, lies: {}, votes: {}, options: null, round: null, total } };
   },
 
   lie(G, who, raw) {
@@ -46,6 +52,15 @@ const fibHost = {
     const f = G.f, fact = f.qs[f.qi];
     const opts = Object.entries(f.lies).map(([p, text]) => ({ id: rid().slice(0, 6), text, by: p }));
     if (!f.quib) opts.push({ id: rid().slice(0, 6), text: fact.a, by: null });
+    // Bot answers that duplicate a player's answer (or the truth) are skipped.
+    const bots = f.quib ? (typeof QUIB_BOTS !== "undefined" ? QUIB_BOTS : {}) : (typeof FIB_BOTS !== "undefined" ? FIB_BOTS : {});
+    const bank = bots[fact.q] || [];
+    for (const raw of shuffle(bank.slice())) {
+      if (opts.filter(o => o.bot).length >= (f.bots || 0)) break;
+      const text = cleanFib(raw, f.quib ? QUIB_MAX_LEN : FIB_MAX_LEN);
+      if (!text || (!f.quib && isTruth(fact, text)) || opts.some(o => normFib(o.text) === normFib(text))) continue;
+      opts.push({ id: rid().slice(0, 6), text, by: null, bot: true });
+    }
     f.options = shuffle(opts); f.votes = {};
     G.phase = "fvote";
   },
@@ -55,6 +70,7 @@ const fibHost = {
     G.players.forEach(p => { d[p] = 0; why[p] = []; });
     for (const [voter, id] of Object.entries(f.votes)) {
       const o = f.options.find(x => x.id === id); if (!o) continue;
+      if (o.bot) continue;
       if (!o.by) { d[voter] += 2; why[voter].push("found the truth"); }
       else if (d[o.by] != null) { d[o.by] += 1; why[o.by].push(f.quib ? `${voter} laughed` : `fooled ${voter}`); }
     }
@@ -87,7 +103,7 @@ const fibHost = {
     if (G.phase === "fvote") v.options = f.options.map(o => ({ id: o.id, text: o.text, mine: o.by === name }));
     if (done) {
       v.answer = f.quib ? null : fact.a;
-      v.options = f.options.map(o => ({ id: o.id, text: o.text, by: o.by, pickers: Object.keys(f.votes).filter(p => f.votes[p] === o.id) }));
+      v.options = f.options.map(o => ({ id: o.id, text: o.text, by: o.by, bot: !!o.bot, pickers: Object.keys(f.votes).filter(p => f.votes[p] === o.id) }));
       v.round = f.round;
     }
     return v;
@@ -171,7 +187,7 @@ const fibViews = {
 
   freveal() {
     if (ui.view.f.quib) return quibReveal();
-    const v = ui.view, f = v.f, truth = f.options.find(o => !o.by), lies = f.options.filter(o => o.by).sort((a, b) => b.pickers.length - a.pickers.length);
+    const v = ui.view, f = v.f, truth = f.options.find(isTruthOpt), lies = f.options.filter(o => !isTruthOpt(o)).sort((a, b) => b.pickers.length - a.pickers.length);
     const order = v.players.slice().sort((a, b) => (f.total[b] || 0) - (f.total[a] || 0));
     const last = f.qi === f.n - 1;
     return head(fibStep(v)) + `
@@ -183,7 +199,7 @@ const fibViews = {
     </section>
     <section class="card">
       <div class="label">The fibs</div>
-      <ul class="flies">${lies.map(o => `<li class="${o.by === v.me ? "you" : ""}"><div><b>${esc(o.text)}</b><small class="muted">${esc(o.by)}'s fib</small></div><span>${o.pickers.length ? `fooled ${fibWho(o.pickers)} <em>+${o.pickers.length}</em>` : `<span class="muted">fooled nobody</span>`}</span></li>`).join("")}</ul>
+      <ul class="flies">${lies.map(o => `<li class="${o.by === v.me ? "you" : ""}"><div><b>${esc(o.text)}</b><small class="muted">${o.bot ? "🤖 Bot's fib" : `${esc(o.by)}'s fib`}</small></div><span>${o.pickers.length ? `fooled ${fibWho(o.pickers)}${o.bot ? "" : ` <em>+${o.pickers.length}</em>`}` : `<span class="muted">fooled nobody</span>`}</span></li>`).join("")}</ul>
     </section>
     <section class="card">
       <div class="label">Scores</div>
@@ -223,7 +239,7 @@ function quibReveal() {
     ${f.round.sweep ? `<section class="card spot center"><div class="label">Clean sweep!</div><div class="big-name">${esc(f.round.sweep)}</div><p class="muted small">Everyone voted for it. +2 bonus</p></section>` : ""}
     <section class="card">
       <div class="label">The answers</div>
-      <ul class="flies">${opts.map(o => `<li class="${o.by === v.me ? "you" : ""}${top && o.pickers.length === top ? " top" : ""}"><div><b>${esc(o.text)}</b><small class="muted">${esc(o.by)}</small></div><span>${o.pickers.length ? `${fibWho(o.pickers)} <em>+${o.pickers.length}</em>` : `<span class="muted">no votes</span>`}</span></li>`).join("")}</ul>
+      <ul class="flies">${opts.map(o => `<li class="${o.by === v.me ? "you" : ""}${top && o.pickers.length === top ? " top" : ""}"><div><b>${esc(o.text)}</b><small class="muted">${o.bot ? "🤖 " + BOT_NAME : esc(o.by)}</small></div><span>${o.pickers.length ? `${fibWho(o.pickers)}${o.bot ? "" : ` <em>+${o.pickers.length}</em>`}` : `<span class="muted">no votes</span>`}</span></li>`).join("")}</ul>
     </section>
     <section class="card">
       <div class="label">Scores</div>
@@ -242,16 +258,21 @@ function fibLobby(v, lock, isHost) {
     <section class="card">
       <div class="label">${quib ? "Prompts" : "Questions"}</div>
       <div class="chips">${[5, 8, 10].map(n => `<button class="chip" data-act="fn" data-v="${n}" ${lock} aria-pressed="${fs.n === n}">${n}</button>`).join("")}</div>
+    </section>
+    <section class="card">
+      <div class="label">Bot answers</div>
+      <div class="chips">${FIB_BOT_CHOICES.map(n => `<button class="chip" data-act="fbots" data-v="${n}" ${lock} aria-pressed="${fs.bots === n}">${n ? n : "None"}</button>`).join("")}</div>
+      <p class="muted small">${quib ? "The bot adds its own jokes to the vote. Can you beat it?" : "The bot slips extra fake answers in with yours, so the truth is harder to find."} Votes for the bot score nothing.</p>
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the settings.</p>`}
     </section>
     <button class="btn" data-act="start" ${v.seats.length >= 2 ? "" : "disabled"}>Start ${quib ? "Quibber" : "Fibber"}</button>
     ${quib ? `<section class="card"><div class="label">How Quibber works</div><ul class="rules">
       <li>Everyone gets the same silly prompt.</li>
       <li>Type the funniest answer you can think of. There's no right answer.</li>
-      <li>All the answers show up on every phone without names. Vote for your favorite (not your own).</li>
+      <li>All the answers show up on every phone without names, plus the bot's if it's on. Vote for your favorite (not your own).</li>
       <li><b>+1</b> for every vote you get. If everyone else votes for yours, that's a clean sweep: <b>+2</b> bonus.</li></ul></section>` : `<section class="card"><div class="label">How Fibber works</div><ul class="rules">
       <li>Everyone sees the same strange-but-true fact with a blank in it.</li>
       <li>Write a fake answer that sounds real. If you accidentally write the true answer, you'll be asked for another.</li>
-      <li>All the fibs and the real answer show up on every phone. Vote for the one you think is true.</li>
+      <li>All the fibs and the real answer show up on every phone, plus fakes from the bot if it's on. Vote for the one you think is true.</li>
       <li><b>+2</b> for finding the truth. <b>+1</b> for every player who falls for your fib.</li></ul></section>`}`;
 }
