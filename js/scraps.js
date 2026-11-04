@@ -59,7 +59,12 @@ const SCRAP_TIERS = [
     "beard|headphones|microphone|guitar|drum set|piano|trumpet|controller|smartphone|laptop|camera|light bulb|battery|magnet|key|lock|ladder|hammer|" +
     "scissors|pencil|globe|telescope|magnifying glass|flag|trophy|medal|basketball|bowling|kite|beach ball|sandcastle|slide|swing|trampoline|igloo|" +
     "christmas tree|jack-o'-lantern|cactus|mushroom|palm tree|lightning|mountain|treehouse|windmill|barn|bridge|skyscraper|snow globe|fireworks|skeleton|" +
-    "witch|magic wand|treasure map|eyeball|piggy bank"),
+    "witch|magic wand|treasure map|eyeball|piggy bank|apple|banana|carrot|strawberry|cherry|pineapple|grapes|lemon|egg|cookie|bread|broccoli|avocado|peanut|" +
+    "dog|cat|horse|rabbit|mouse|lion|tiger|zebra|elephant|monkey|bear|fox|deer|camel|crocodile|parrot|fish|worm|ant|eagle|swan|chair|table|door|window|bed|" +
+    "book|mug|teapot|fork|spoon|bottle|candle|balloon|present|cloud|snowflake|leaf|flower|tree|house|car|boat|airplane|truck|motorcycle|tooth|bone|sock|" +
+    "dress|jeans|mitten|scarf|ring|necklace|envelope|paper airplane|bell|violin|toothbrush|comb|soap|bucket|shovel|broom|wrench|paintbrush|crayon|ruler|" +
+    "paperclip|bandage|thermometer|tv|radio|dice|yo-yo|rubik's cube|treasure chest|spider web|bird nest|beehive|traffic cone|hair dryer|tow truck|sunflower|" +
+    "anchor|teddy bear"),
   // 2: scenes, people, places, activities
   ("roller coaster|ferris wheel|sunset|sunrise|satellite|black hole|solar system|shooting star|eclipse|sunburn|sneeze|homework|selfie|wifi|low battery|" +
     "video call|superhero|villain|haunted house|zombie|werewolf|mummy|vampire|wizard|crystal ball|message in a bottle|desert island|shipwreck|quicksand|" +
@@ -71,7 +76,14 @@ const SCRAP_TIERS = [
     "jungle|cave|island|thunderstorm|earthquake|flood|ocean wave|music|sleep|explosion|love|high five|thumbs up|pillow fight|tug of war|lemonade stand|" +
     "sleepover|traffic jam|road trip|snot|burp|toothache|broken heart|caveman|time machine|mad scientist|secret agent|bank robbery|police chase|haircut|" +
     "power outage|hurricane|tidal wave|lava lamp|disco ball|karaoke|selfie stick|emoji|nightmare|bubble bath|campfire story|birthday party|dance party|" +
-    "sandstorm|hot tub|food fight|car wash|parade|circus|rock concert|marathon|tightrope|pizza delivery|lunch line|piece of cake|cat nap|idea|crybaby"),
+    "sandstorm|hot tub|food fight|car wash|parade|circus|rock concert|marathon|tightrope|pizza delivery|lunch line|piece of cake|cat nap|idea|crybaby|" +
+    "camping|picnic|beach|playground|carnival|wedding|graduation|arcade|mall|grocery store|bakery|train station|subway|bus stop|fire station|police officer|" +
+    "mail carrier|pilot|nurse|painter|photographer|baker|plumber|barber|construction worker|princess|king|queen|ballerina|cheerleader|goalie|juggler|" +
+    "rock climbing|skydiving|bungee jumping|horseback riding|water skiing|kayaking|hiking|jump rope|hopscotch|snow angel|leaf pile|water balloon fight|" +
+    "sprinkler|blowing bubbles|sandbox|petting zoo|dog walker|northern lights|meteor shower|fog|blizzard|waterpark|ski lift|pool party|ice cream truck|" +
+    "food truck|mowing the lawn|washing dishes|brushing teeth|cooking|baking cookies|gardening|knitting|magic trick|puppet show|hula hoop|skate park|" +
+    "touchdown|penalty kick|home run|cannonball|snorkeling|sunbathing|pirate ship|maze|genie|whoopee cushion|pinata|cartwheel|headstand|sea monster|" +
+    "haunted castle|robot dog|space station|asteroid|mermaid tail|wedding cake|belly button"),
   // 3: harder, but each one has a picture that gives it away (cold feet = feet frozen in ice). No ideas you can't draw.
   ("raining cats and dogs|elephant in the room|couch potato|night owl|bookworm|brain freeze|cold feet|butterflies in your stomach|fish out of water|" +
     "hot potato|early bird|the floor is lava|snooze button|speed bump|dead end|photobomb|standing ovation|time travel|lie detector|sleepwalking|" +
@@ -83,12 +95,20 @@ const SCRAP_TIERS = [
     "livestream|daydream|detention|password|invisibility|sleep talking|tip of the iceberg|walking on eggshells|head in the clouds|cry over spilled milk|" +
     "let the cat out of the bag|cool as a cucumber|money tree|two left feet|out on a limb|food chain|family tree|belly flop|snow day|time out|tan lines|" +
     "ice bucket challenge|mosh pit|drive-thru|parallel parking|bubble wrap|upside down|hiccups|sinking ship|flat tire|hole in one|slam dunk|belly laugh|" +
-    "heat wave|moon landing|treasure hunt|pillow fort|marshmallow roast")
+    "heat wave|moon landing|treasure hunt|pillow fort|marshmallow roast|hit the hay|bed bugs|snowball effect|needle in a haystack|bull in a china shop|" +
+    "when pigs fly|hold your horses|lone wolf|black sheep|copycat|scaredy-cat|party animal|social butterfly|top dog|cash cow|bear hug|crocodile tears|" +
+    "pig out|green thumb|big cheese|egghead|sweet dreams|piggyback ride|trick or treat|surprise party|love at first sight|one-man band|air guitar|" +
+    "singing in the shower|hot seat|static electricity|dinosaur extinction|lost in space|overboard|walk the plank|seasick|melting snowman|" +
+    "struck by lightning|smoke signal|tin can phone|house of cards|jenga|slip on a banana peel|pie in the face|power nap|lights out|tiptoe|cavity|" +
+    "bad breath|stinky socks|wild goose chase|cat burglar|shopping spree|window shopping|road rage|backseat driver|fender bender|hitchhiker|red carpet|" +
+    "paparazzi|magic carpet|wishing well|make a wish|time capsule|skeleton in the closet|monster under the bed|snoring|sack race|egg and spoon race|limbo|" +
+    "victory dance|underdog|screen time|final boss|extra life|power-up|level up|computer virus|self-driving car|drone delivery|virtual reality|" +
+    "brain surgery|house party|water slide|fire breathing|sword fight|big mouth|snowed in|ant farm|bird brain|night light")
 ].map(t => t.split("|").filter(Boolean));
 const SCRAP_WORDS = [...new Set(SCRAP_TIERS.flat())];
 const scrapTier = (mode, level) => (mode === "pen" ? 1 : 0) + (level === "hard" ? 1 : 0);
 // Alternates that should also count as right.
-const SCRAP_ALTS = { "tv remote": ["remote", "remote control"], "smartphone": ["phone", "cell phone", "iphone"], "wifi": ["wi-fi", "internet"], "dj": ["disc jockey"], "jack-o'-lantern": ["jack o lantern", "pumpkin"], "santa claus": ["santa"], "fridge": ["refrigerator"], "ocean wave": ["wave"], "soccer": ["football"], "garden gnome": ["gnome"], "christmas tree": ["xmas tree"], "video game": ["videogame", "gaming"], "french fries": ["fries", "chips"], "hot dog": ["hotdog"], "high five": ["hi five"], "time travel": ["time traveling", "time travelling"], "solar system": ["planets"], "global warming": ["climate change"], "evil laugh": ["villain laugh"], "photobomb": ["photo bomb"], "drive-thru": ["drive through", "drive thru"], "money tree": ["money grows on trees"], "good luck": ["luck", "four leaf clover"] };
+const SCRAP_ALTS = { "tv remote": ["remote", "remote control"], "smartphone": ["phone", "cell phone", "iphone"], "wifi": ["wi-fi", "internet"], "dj": ["disc jockey"], "jack-o'-lantern": ["jack o lantern", "pumpkin"], "santa claus": ["santa"], "fridge": ["refrigerator"], "ocean wave": ["wave"], "soccer": ["football"], "garden gnome": ["gnome"], "christmas tree": ["xmas tree"], "video game": ["videogame", "gaming"], "french fries": ["fries", "chips"], "hot dog": ["hotdog"], "high five": ["hi five"], "time travel": ["time traveling", "time travelling"], "solar system": ["planets"], "global warming": ["climate change"], "evil laugh": ["villain laugh"], "photobomb": ["photo bomb"], "rubik's cube": ["rubix cube", "rubiks cube"], "tv": ["television"], "present": ["gift"], "jeans": ["pants"], "mug": ["cup"], "self-driving car": ["driverless car"], "virtual reality": ["vr"], "overboard": ["man overboard"], "tin can phone": ["string phone"], "airplane": ["plane"], "paper airplane": ["paper plane"], "motorcycle": ["motorbike"], "rabbit": ["bunny"], "teddy bear": ["teddy"], "pinata": ["piñata"], "mail carrier": ["mailman", "postman"], "police officer": ["cop", "police"], "trick or treat": ["trick or treating", "halloween"], "copycat": ["copy cat"], "bed bugs": ["bedbugs"], "drive-thru": ["drive through", "drive thru"], "money tree": ["money grows on trees"], "good luck": ["luck", "four leaf clover"] };
 
 /* ---------- Host side ---------- */
 
