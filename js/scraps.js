@@ -2,7 +2,7 @@
 // a few body-part/symbol stickers (no whole objects, no letters). Everyone else watches it come together
 // live and types guesses. Faster guesses score more; the builder scores for everyone who gets it.
 
-const SCRAPS_DEFAULTS = { turns: 1, secs: 90, mode: "pieces" };
+const SCRAPS_DEFAULTS = { turns: 1, secs: 90, mode: "pieces", level: "easy" };
 const SCRAP_MAX = 80, SCRAP_PICK_SECS = 20;
 // The pad: the normal view is 0-1000 square; zooming out reaches the rest of the world (3x each way).
 const SCRAP_W0 = -1000, SCRAP_W1 = 2000;
@@ -46,20 +46,50 @@ const isEmojiK = k => /^e\d+$/.test(k) && +k.slice(1) < SCRAP_EMOJI.length;
 const scrapKindOk = k => !!SCRAP_SHAPES[k] || isEmojiK(k);
 
 // Words to build. "a|b" means b is also accepted. Mixed difficulty, teen-friendly.
-const SCRAP_WORDS = ("snowman|traffic light|rocket|volcano|jellyfish|octopus|ice cream cone|birthday cake|pizza|hamburger|robot|ghost|alien|pirate|vampire|mermaid|unicorn|dragon|castle|lighthouse|rainbow|tornado|sunset|campfire|tent|roller coaster|ferris wheel|hot air balloon|submarine|helicopter|sailboat|bicycle|skateboard|train|school bus|fire truck|tractor|spaceship|satellite|black hole|solar system|shooting star|eclipse|planet|" +
-  "brain freeze|sunburn|sneeze|hiccups|nightmare|daydream|homework|detention|group chat|selfie|wifi|low battery|password|screenshot|video call|livestream|plot twist|spoiler|cliffhanger|sleepwalking|jet lag|sugar rush|food coma|stage fright|lie detector|time travel|invisibility|superhero|villain|haunted house|zombie|werewolf|mummy|skeleton|witch|wizard|magic wand|crystal ball|treasure map|message in a bottle|desert island|shipwreck|quicksand|waterfall|iceberg|" +
-  "eiffel tower|statue of liberty|pyramid|stonehenge|mount everest|leaning tower of pisa|big ben|mount rushmore|" +
-  "flamingo|peacock|giraffe|porcupine|snail|turtle|crab|shark|whale|penguin|owl|bat|spider|bee|butterfly|caterpillar|ladybug|scorpion|dinosaur|snake|frog|duck|chicken|pig|cow|sheep|llama|kangaroo|koala|sloth|panda|polar bear|hedgehog|seahorse|starfish|lobster|jellyfish|squid|peacock|mosquito|" +
-  "taco|sushi|spaghetti|popcorn|pancakes|waffle|donut|cupcake|hot dog|french fries|popsicle|watermelon|fried egg|corn on the cob|cheese|sandwich|milkshake|cereal|pretzel|candy cane|gingerbread man|burrito|lollipop|cotton candy|" +
-  "toilet|bathtub|shower|couch|bunk bed|lamp|alarm clock|toaster|microwave|fridge|washing machine|vacuum|umbrella|glasses|sunglasses|backpack|sneakers|high heels|crown|top hat|bow tie|necktie|mustache|beard|braces|wig|tattoo|headphones|microphone|guitar|drum set|piano|trumpet|video game|controller|tv remote|smartphone|laptop|keyboard|printer|camera|light bulb|battery|magnet|key|lock|ladder|hammer|scissors|pencil|calculator|globe|telescope|microscope|magnifying glass|compass|flag|trophy|medal|" +
-  "basketball|soccer|bowling|golf|tennis|surfing|skiing|snowboarding|ice skating|swimming pool|diving board|trampoline|slide|swing|sandcastle|beach ball|kite|fishing|scuba diver|astronaut|firefighter|chef|doctor|dentist|teacher|ninja|knight|cowboy|clown|mime|magician|dj|referee|lifeguard|farmer|scarecrow|garden gnome|santa claus|easter bunny|jack-o'-lantern|christmas tree|fireworks|snow globe|igloo|snowball fight|sledding|" +
-  "hospital|school|library|zoo|aquarium|airport|gas station|movie theater|treehouse|farm|desert|jungle|cave|island|bridge|skyscraper|windmill|barn|" +
-  "cactus|mushroom|palm tree|lightning|thunderstorm|earthquake|flood|sunrise|mountain|ocean wave|music|sleep|idea|explosion|love|" +
-  "cat nap|couch potato|brainstorm|bookworm|night owl|piggy bank|eyeball|high five|thumbs up|bad hair day|cold shoulder|break a leg|raining cats and dogs|elephant in the room|piece of cake|fish out of water|early bird|crybaby|hot potato|butterflies in your stomach|heartbreak|tongue twister|eye roll|facepalm|mind blown|wake-up call|chain reaction|road trip|sleepover|traffic jam|pillow fight|tug of war|hide and seek|musical chairs|lemonade stand|fire drill|spelling bee|science fair|pop quiz|" +
-  "snot|burp|toothache|broken heart|tears of joy|loud music|bad smell|sunglasses at night|ice age|stone age|caveman|time machine|crash landing|mad scientist|evil laugh|secret agent|bank robbery|getaway car|police chase|alien abduction|zombie apocalypse|haircut|first day of school|lost luggage|power outage|hurricane|tidal wave|lava lamp|disco ball|karaoke|selfie stick|emoji|meme|hashtag")
-  .split("|").filter((w, i, a) => w && a.indexOf(w) === i);
+// Three levels of words. Pieces: Easy = level 1, Hard = level 2. Pen: Easy = level 2, Hard = level 3,
+// so drawing is always one step harder than building (drawing makes concrete things too easy).
+const SCRAP_TIERS = [
+  // 1: simple things you could point at
+  ("snowman|traffic light|rocket|volcano|jellyfish|octopus|ice cream cone|birthday cake|pizza|hamburger|robot|ghost|alien|pirate|mermaid|unicorn|dragon|" +
+    "castle|lighthouse|rainbow|tornado|campfire|tent|hot air balloon|submarine|helicopter|sailboat|bicycle|skateboard|train|school bus|fire truck|tractor|" +
+    "spaceship|planet|moon|flamingo|peacock|giraffe|porcupine|snail|turtle|crab|shark|whale|penguin|owl|bat|spider|bee|butterfly|caterpillar|ladybug|" +
+    "dinosaur|snake|frog|duck|chicken|pig|cow|sheep|kangaroo|panda|polar bear|hedgehog|seahorse|starfish|lobster|squid|mosquito|taco|sushi|spaghetti|" +
+    "popcorn|pancakes|waffle|donut|cupcake|hot dog|french fries|popsicle|watermelon|fried egg|cheese|sandwich|milkshake|pretzel|candy cane|gingerbread man|" +
+    "lollipop|toilet|bathtub|couch|bunk bed|lamp|alarm clock|toaster|fridge|umbrella|glasses|sunglasses|backpack|sneakers|crown|top hat|bow tie|mustache|" +
+    "beard|headphones|microphone|guitar|drum set|piano|trumpet|controller|smartphone|laptop|camera|light bulb|battery|magnet|key|lock|ladder|hammer|" +
+    "scissors|pencil|globe|telescope|magnifying glass|flag|trophy|medal|basketball|bowling|kite|beach ball|sandcastle|slide|swing|trampoline|igloo|" +
+    "christmas tree|jack-o'-lantern|cactus|mushroom|palm tree|lightning|mountain|treehouse|windmill|barn|bridge|skyscraper|snow globe|fireworks|skeleton|" +
+    "witch|magic wand|treasure map|eyeball|piggy bank"),
+  // 2: scenes, people, places, activities
+  ("roller coaster|ferris wheel|sunset|sunrise|satellite|black hole|solar system|shooting star|eclipse|sunburn|sneeze|hiccups|homework|selfie|wifi|" +
+    "low battery|screenshot|video call|superhero|villain|haunted house|zombie|werewolf|mummy|vampire|wizard|crystal ball|message in a bottle|desert island|" +
+    "shipwreck|quicksand|waterfall|iceberg|eiffel tower|statue of liberty|pyramid|stonehenge|mount everest|leaning tower of pisa|big ben|mount rushmore|" +
+    "scorpion|llama|koala|sloth|corn on the cob|cereal|burrito|cotton candy|shower|microwave|washing machine|vacuum|high heels|necktie|braces|wig|tattoo|" +
+    "video game|tv remote|keyboard|printer|calculator|microscope|compass|soccer|golf|tennis|surfing|skiing|snowboarding|ice skating|swimming pool|" +
+    "diving board|fishing|scuba diver|astronaut|firefighter|chef|doctor|dentist|teacher|ninja|knight|cowboy|clown|mime|magician|dj|referee|lifeguard|farmer|" +
+    "scarecrow|garden gnome|santa claus|easter bunny|snowball fight|sledding|hospital|school|library|zoo|aquarium|airport|gas station|movie theater|farm|" +
+    "desert|jungle|cave|island|thunderstorm|earthquake|flood|ocean wave|music|sleep|explosion|love|high five|thumbs up|pillow fight|tug of war|" +
+    "lemonade stand|sleepover|traffic jam|road trip|snot|burp|toothache|broken heart|caveman|time machine|mad scientist|secret agent|bank robbery|" +
+    "police chase|haircut|power outage|hurricane|tidal wave|lava lamp|disco ball|karaoke|selfie stick|emoji|nightmare|bubble bath|campfire story|" +
+    "birthday party|dance party|sandstorm|hot tub|food fight|car wash|garage sale|parade|circus|rock concert|marathon|tightrope|pizza delivery|lunch line"),
+  // 3: ideas, feelings, sayings, situations
+  ("plot twist|spoiler|cliffhanger|brain freeze|daydream|detention|group chat|password|livestream|sleepwalking|jet lag|sugar rush|food coma|stage fright|" +
+    "lie detector|time travel|invisibility|idea|cat nap|couch potato|brainstorm|bookworm|night owl|bad hair day|cold shoulder|break a leg|" +
+    "raining cats and dogs|elephant in the room|piece of cake|fish out of water|early bird|crybaby|hot potato|butterflies in your stomach|heartbreak|" +
+    "tongue twister|eye roll|facepalm|mind blown|wake-up call|chain reaction|hide and seek|musical chairs|fire drill|spelling bee|science fair|pop quiz|" +
+    "tears of joy|loud music|bad smell|sunglasses at night|ice age|stone age|crash landing|evil laugh|getaway car|alien abduction|zombie apocalypse|" +
+    "first day of school|lost luggage|meme|hashtag|deja vu|peer pressure|procrastination|gravity|echo|shadow|reflection|jealousy|boredom|awkward silence|" +
+    "inside joke|white lie|glow up|ghosting|main character|side quest|rage quit|buffering|airplane mode|read receipt|autocorrect|typo|sore loser|pet peeve|" +
+    "comfort zone|cabin fever|growth spurt|spring cleaning|sibling rivalry|curfew|allowance|grounded|snooze button|monday morning|last minute|deadline|" +
+    "overthinking|second thoughts|cold feet|under the weather|on cloud nine|spill the beans|cat got your tongue|bucket list|rush hour|small talk|dad joke|" +
+    "the floor is lava|sweet tooth|brain fart|standing ovation|photobomb|speed bump|dead end|pins and needles|goosebumps|butterfly effect|wishful thinking|" +
+    "evolution|global warming|recycling|gossip|friendship|teamwork|good luck|secret|memory|fomo|hangry|time zone|leap year|stage dive|u-turn|sleep in|" +
+    "best friends forever|silent treatment|personal space")
+].map(t => t.split("|").filter(Boolean));
+const SCRAP_WORDS = [...new Set(SCRAP_TIERS.flat())];
+const scrapTier = (mode, level) => (mode === "pen" ? 1 : 0) + (level === "hard" ? 1 : 0);
 // Alternates that should also count as right.
-const SCRAP_ALTS = { "tv remote": ["remote", "remote control"], "smartphone": ["phone", "cell phone", "iphone"], "wifi": ["wi-fi", "internet"], "dj": ["disc jockey"], "jack-o'-lantern": ["jack o lantern", "pumpkin"], "santa claus": ["santa"], "fridge": ["refrigerator"], "ocean wave": ["wave"], "soccer": ["football"], "garden gnome": ["gnome"], "christmas tree": ["xmas tree"], "video game": ["videogame", "gaming"], "french fries": ["fries", "chips"], "hot dog": ["hotdog"], "high five": ["hi five"], "time travel": ["time traveling", "time travelling"], "solar system": ["planets"] };
+const SCRAP_ALTS = { "tv remote": ["remote", "remote control"], "smartphone": ["phone", "cell phone", "iphone"], "wifi": ["wi-fi", "internet"], "dj": ["disc jockey"], "jack-o'-lantern": ["jack o lantern", "pumpkin"], "santa claus": ["santa"], "fridge": ["refrigerator"], "ocean wave": ["wave"], "soccer": ["football"], "garden gnome": ["gnome"], "christmas tree": ["xmas tree"], "video game": ["videogame", "gaming"], "french fries": ["fries", "chips"], "hot dog": ["hotdog"], "high five": ["hi five"], "time travel": ["time traveling", "time travelling"], "solar system": ["planets"], "fomo": ["fear of missing out"], "best friends forever": ["bff", "best friends"], "good luck": ["luck"], "global warming": ["climate change"], "hangry": ["hungry and angry"], "evil laugh": ["villain laugh"], "glow up": ["glowup"], "photobomb": ["photo bomb"] };
 
 /* ---------- Host side ---------- */
 
@@ -89,23 +119,25 @@ const lev = (a, b) => {
   return d[a.length][b.length];
 };
 // Spaces and hyphens don't matter ("hot dog" = "hotdog").
-const squash = s => normFib(s).replace(/ /g, "");
+// Accents don't matter either ("déjà vu" = "deja vu").
+const squash = s => normFib(String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")).replace(/ /g, "");
 
 const scrapsHost = {
   newGame(G, seats) {
     const set = { ...SCRAPS_DEFAULTS, ...(G.sset || {}) }, order = shuffle(seats), turns = [];
     for (let t = 0; t < set.turns; t++) turns.push(...order);
     const total = {}; seats.forEach(p => { total[p] = 0; });
-    const g = { gid: "s" + Date.now().toString(36), phase: "spick", players: seats, usedScraps: (G.usedScraps || []).filter(w => SCRAP_WORDS.includes(w)), s: { turns, ti: 0, secs: set.secs, mode: set.mode === "pen" ? "pen" : "pieces", total } };
+    const g = { gid: "s" + Date.now().toString(36), phase: "spick", players: seats, usedScraps: (G.usedScraps || []).filter(w => SCRAP_WORDS.includes(w)), s: { turns, ti: 0, secs: set.secs, mode: set.mode === "pen" ? "pen" : "pieces", tier: scrapTier(set.mode, set.level), total } };
     this.startTurn(g);
     return g;
   },
 
-  // Two words nobody has built recently.
+  // Two words from this game's level that nobody has built recently (never-used first, then the longest ago).
   startTurn(G) {
-    const s = G.s, used = G.usedScraps || [];
-    const fresh = shuffle(SCRAP_WORDS.filter(w => !used.includes(w)));
-    const opts = (fresh.length >= 2 ? fresh : shuffle(SCRAP_WORDS)).slice(0, 2);
+    const s = G.s, used = G.usedScraps || [], pool = SCRAP_TIERS[s.tier != null ? s.tier : 0];
+    const fresh = shuffle(pool.filter(w => !used.includes(w)));
+    const stale = pool.filter(w => used.includes(w)).sort((a, b) => used.indexOf(a) - used.indexOf(b));
+    const opts = [...fresh, ...stale].slice(0, 2);
     Object.assign(s, { builder: s.turns[s.ti], opts, word: null, pieces: [], strokes: [], guessed: [], feed: [], fid: 0, pickBy: Date.now() + SCRAP_PICK_SECS * 1000, startsAt: 0, endsAt: 0, hintAt: 0, hi: -1, round: null });
     G.phase = "spick";
   },
@@ -333,6 +365,7 @@ const scrapsActions = {
   sturns: el => act({ type: "sturns", v: +el.dataset.v }),
   ssecs: el => act({ type: "ssecs", v: +el.dataset.v }),
   smode: el => act({ type: "smode", v: el.dataset.v }),
+  slevel: el => act({ type: "slevel", v: el.dataset.v }),
   spick: el => act({ type: "spick", k: +el.dataset.v, ti: ui.view.s.ti }),
   snext: () => act({ type: "snext", ti: ui.view.s.ti }),
   sguess: () => scrapsGuess(),
@@ -660,6 +693,8 @@ function scrapsScoreCard(v) {
   return `<section class="card"><div class="label">Scores</div><ul class="players">${order.map(p => `<li class="${p === v.me ? "you" : ""}"><span>${esc(p)} <small class="muted">${d[p] ? `+${d[p]} this turn` : ""}</small></span><em>${s.total[p] || 0}</em></li>`).join("")}</ul></section>`;
 }
 
+const SCRAP_LEVEL_EG = ["pizza, shark, alarm clock", "haunted house, sunburn, scuba diver", "plot twist, peer pressure, cold feet"];
+const scrapLevelHint = ss => { const t = scrapTier(ss.mode, ss.level); return `Level ${t + 1} of 3, like <i>${SCRAP_LEVEL_EG[t]}</i>.${ss.mode === "pen" ? " Pen words are a level harder than Pieces words." : ""}`; };
 function scrapsLobby(v, lock, isHost) {
   const ss = v.sset;
   const pen = ss.mode === "pen";
@@ -667,6 +702,9 @@ function scrapsLobby(v, lock, isHost) {
       <div class="label">Build with</div>
       <div class="chips">${[["pieces", "Pieces"], ["pen", "Pen"]].map(([m, label]) => `<button class="chip" data-act="smode" data-v="${m}" ${lock} aria-pressed="${(ss.mode || "pieces") === m}">${label}</button>`).join("")}</div>
       <p class="muted small">${pen ? "<b>Pen:</b> plain drawing, like Pictionary." : "<b>Pieces:</b> build the picture out of shapes and stickers."}</p>
+      <div class="label">Words</div>
+      <div class="chips">${[["easy", "Easy"], ["hard", "Hard"]].map(([l, label]) => `<button class="chip" data-act="slevel" data-v="${l}" ${lock} aria-pressed="${(ss.level || "easy") === l}">${label}</button>`).join("")}</div>
+      <p class="muted small">${scrapLevelHint(ss)}</p>
       <div class="label">Turns to build (each)</div>
       <div class="chips">${[1, 2, 3].map(n => `<button class="chip" data-act="sturns" data-v="${n}" ${lock} aria-pressed="${ss.turns === n}">${n}</button>`).join("")}</div>
       <div class="label">Time to build</div>
