@@ -39,7 +39,7 @@ While dragging or drawing, the builder's phone only updates the piece or stroke 
 
 ## Tongue Tied
 
-A Taboo-style word game. Players take turns talking: the speaker gets a card with a word and 5 taboo words, and has to get the others to say the word without saying it, any part of it, or any taboo word. Cards come one after another until the turn's timer (45 s, 1 min or 1½ min) runs out.
+A Taboo-style word game. Players take turns talking: the speaker gets a card with a word and its taboo words (5 on Easy, 8 on Hard), and has to get the others to say the word without saying it, any part of it, or any taboo word. Cards come one after another until the turn's timer (45 s, 1 min or 1½ min) runs out.
 
 - **Got it:** +1 to the speaker and +1 to whoever guessed it. With more than one guesser, the marker taps the name of whoever got it.
 - **Taboo word:** −1 to the speaker.
@@ -52,4 +52,4 @@ Two ways to keep score:
 
 Guessers never receive the card. The speaker's and judge's phones are also sent the next 3 cards, so the card changes the moment they tap instead of waiting on the relay; each tap carries the card number, so a double tap or speaker and judge tapping at once only counts once.
 
-**Words: Easy / Hard.** 536 easy cards (pizza, beach, toothbrush) and 561 hard ones (eclipse, procrastinate, Hogwarts) in `js/taboos.js`; no word is in both. Cards nobody has had come first.
+**Words: Easy / Hard.** 536 easy cards (pizza, beach, toothbrush) with 5 taboo words each, and 561 hard ones (eclipse, procrastinate, Hogwarts) with 8 taboo words each, in `js/taboos.js`; no word is in both. Cards nobody has had come first.

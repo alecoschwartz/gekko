@@ -1,4 +1,4 @@
-// Tongue Tied: a Taboo-style word game. The speaker gets a card with a word and 5 taboo words, and has to get
+// Tongue Tied: a Taboo-style word game. The speaker gets a card with a word and its taboo words (5 on Easy, 8 on Hard), and has to get
 // the others to say the word without saying any of the taboo words (or the word itself).
 // Two modes: "self" (honor system: the speaker marks their own cards, 2+ players) and
 // "judge" (the next player sees the card too and marks pass or fail, 3+ players).
@@ -10,6 +10,7 @@ const TONGUE_FREE_SKIP = 20000, TONGUE_COUNTDOWN = 3000, TONGUE_AHEAD = 3;
 const tongueCards = level => level === "hard" ? TABOO_HARD : TABOO_EASY;
 const tongueCard = c => { const [w, ...no] = String(c).split("|"); return { w, no }; };
 const tongueMin = mode => mode === "judge" ? 3 : 2;
+const tongueNo = level => level === "hard" ? 8 : 5;
 
 /* ---------- Host side ---------- */
 
@@ -152,7 +153,7 @@ const tonguePts = n => n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0";
 function tongueCardHtml(c) {
   if (!c) return "";
   const k = tongueCard(c);
-  return `<div class="tcard"><div class="tword">${esc(k.w.toUpperCase())}</div><div class="label">Don't say</div><ul class="tno">${k.no.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  return `<div class="tcard"><div class="tword">${esc(k.w.toUpperCase())}</div><div class="label">Don't say</div><ul class="tno${k.no.length > 5 ? " two" : ""}">${k.no.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
 }
 function tongueLogHtml(t, n = 99) {
   const rows = t.log.slice(-n).reverse().map(e => {
@@ -226,7 +227,7 @@ const tongueViews = {
         <p class="muted">You get ${t.secs} seconds. ${roles}</p></section>
       <button class="btn" data-act="tgo">Start my turn</button>
       <section class="card"><ul class="rules">
-        <li>Get them to say the word on the card. Don't say the word, any part of it, or any of the 5 taboo words.</li>
+        <li>Get them to say the word on the card. Don't say the word, any part of it, or any of the ${tongueNo(t.level)} taboo words.</li>
         <li>No spelling it out, no "sounds like" or "rhymes with", no acting it out.</li>
         <li>${t.mode === "judge" ? `${esc(t.judge)} sees your card and marks each one right or buzzes you (−1).` : "You mark each card yourself: got it, or you slipped and said a taboo word (−1). Be honest!"}</li>
         <li>Skipping costs 1 point, unless the card has been up for 20 seconds. Then it's free.</li></ul></section>
@@ -282,7 +283,7 @@ function tongueLobby(v, lock, isHost) {
       <p class="muted small">${judge ? "<b>With a judge:</b> each turn, another player sees the card and marks pass or fail. Needs 3 or more players." : "<b>Honor system:</b> the speaker marks their own cards. Works with 2 or more players."}</p>
       <div class="label">Words</div>
       <div class="chips">${[["easy", "Easy"], ["hard", "Hard"]].map(([l, label]) => `<button class="chip" data-act="tlevel" data-v="${l}" ${lock} aria-pressed="${ts.level === l}">${label}</button>`).join("")}</div>
-      <p class="muted small">${ts.level === "hard" ? "Hard" : "Easy"} cards are like <i>${TONGUE_LEVEL_EG[ts.level === "hard" ? "hard" : "easy"]}</i>. ${tongueCards(ts.level).length} cards.</p>
+      <p class="muted small">${ts.level === "hard" ? "Hard" : "Easy"} cards are like <i>${TONGUE_LEVEL_EG[ts.level === "hard" ? "hard" : "easy"]}</i>, with ${tongueNo(ts.level)} taboo words each. ${tongueCards(ts.level).length} cards.</p>
       <div class="label">Turns to talk (each)</div>
       <div class="chips">${TONGUE_TURNS.map(n => `<button class="chip" data-act="tturns" data-v="${n}" ${lock} aria-pressed="${ts.turns === n}">${n}</button>`).join("")}</div>
       <div class="label">Time per turn</div>
@@ -291,7 +292,7 @@ function tongueLobby(v, lock, isHost) {
     </section>
     <button class="btn" data-act="start" ${enough ? "" : "disabled"}>${enough ? "Start Tongue Tied" : `Needs ${need} players`}</button>
     <section class="card"><div class="label">How Tongue Tied works</div><ul class="rules">
-      <li>Players take turns talking. The speaker gets a card with a word and 5 taboo words.</li>
+      <li>Players take turns talking. The speaker gets a card with a word and ${tongueNo(ts.level)} taboo words.</li>
       <li>Get everyone else to say the word, without saying the word, any part of it, or any taboo word.</li>
       <li>${judge ? "The judge (a different player each turn) sees the card too. They tap who got it, or buzz the speaker for a taboo word." : "The speaker taps who got it, or owns up when they say a taboo word."}</li>
       <li><b>+1</b> to the speaker and <b>+1</b> to whoever guessed it. Taboo word: <b>−1</b> to the speaker.</li>
