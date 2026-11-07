@@ -7,11 +7,11 @@ const BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884
 const TOPIC_ROOT = "gekko-k7q2x/v1/";
 const ONLINE_MS = 30000;
 // Bump on every release (and the ?v= in index.html). Phones on different versions are told to reload.
-const VERSION = "2026-11-03d";
+const VERSION = "2026-11-07a";
 const CODE_WORDS = ["FROG","MOON","TACO","LAMP","BIKE","DUCK","FISH","CAKE","ROCK","STAR","TREE","BEAR","GOLF","JAZZ","KIWI","LIME","MILK","NEST","PEAR","RAIN","SOCK","TOAD","WAVE","YETI","ZOOM","BARK","CORN","DOVE","FERN","GLOW","HOOT","LEAF","MINT","PINE","ROOF","SALT","TUBA","WOLF","YAWN","SOUP"];
-const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {}, qscores: {}, sset: { ...SCRAPS_DEFAULTS }, sscores: {} };
+const DEFAULT_GAME = { gid: "", phase: "lobby", players: [], scores: {}, cats: [], qPer: 1, game: "gecko", bset: { ...BOGGLE_DEFAULTS }, bscores: {}, fset: { ...FIB_DEFAULTS }, fscores: {}, qscores: {}, sset: { ...SCRAPS_DEFAULTS }, sscores: {}, tset: { ...TONGUE_DEFAULTS }, tscores: {} };
 // Lobby settings and scores that carry over from round to round.
-const settingsOf = G => ({ scores: G.scores, cats: G.cats, qPer: G.qPer, usedQs: G.usedQs || {}, game: G.game || "gecko", bset: G.bset || { ...BOGGLE_DEFAULTS }, bscores: G.bscores || {}, fset: G.fset || { ...FIB_DEFAULTS }, fscores: G.fscores || {}, qscores: G.qscores || {}, usedFibs: G.usedFibs || [], usedQuibs: G.usedQuibs || [], sset: G.sset || { ...SCRAPS_DEFAULTS }, sscores: G.sscores || {}, usedScraps: G.usedScraps || [] });
+const settingsOf = G => ({ scores: G.scores, cats: G.cats, qPer: G.qPer, usedQs: G.usedQs || {}, game: G.game || "gecko", bset: G.bset || { ...BOGGLE_DEFAULTS }, bscores: G.bscores || {}, fset: G.fset || { ...FIB_DEFAULTS }, fscores: G.fscores || {}, qscores: G.qscores || {}, usedFibs: G.usedFibs || [], usedQuibs: G.usedQuibs || [], sset: G.sset || { ...SCRAPS_DEFAULTS }, sscores: G.sscores || {}, usedScraps: G.usedScraps || [], tset: G.tset || { ...TONGUE_DEFAULTS }, tscores: G.tscores || {}, usedTaboo: G.usedTaboo || [] });
 
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -61,7 +61,7 @@ function connectBroker() {
 
 const host = {
   active: false, client: null, code: "", me: "", clients: new Map(), // phone id -> { name, seen }
-  G: { ...DEFAULT_GAME }, seats: [], votes: {}, probe: null, ready: false, bLast: {}, bSeq: 0, bTimer: null, fLast: {}, sLast: {}, sTimer: null,
+  G: { ...DEFAULT_GAME }, seats: [], votes: {}, probe: null, ready: false, bLast: {}, bSeq: 0, bTimer: null, fLast: {}, sLast: {}, sTimer: null, tTimer: null,
 
   save() { lsSet("gekko-host", JSON.stringify({ code: this.code, me: this.me, G: this.G, seats: this.seats, votes: this.votes, t: Date.now() })); },
 
@@ -104,6 +104,19 @@ const host = {
     if (this.G.game === "boggle") loadDict().catch(() => {});
     this.scheduleBoggleEnd();
     this.scheduleScraps();
+    this.scheduleTongue();
+  },
+
+  // Tongue Tied: end the turn when time runs out (with a little slack for a last tap on its way).
+  scheduleTongue() {
+    clearTimeout(this.tTimer);
+    const G = this.G, t = G.t;
+    if (!t || G.phase !== "tplay") return;
+    const ti = t.ti;
+    this.tTimer = setTimeout(() => {
+      if (this.G.phase !== "tplay" || this.G.t.ti !== ti) return;
+      tongueHost.endTurn(this.G); this.changed();
+    }, Math.max(0, t.endsAt + 1200 - Date.now()));
   },
 
   // Scraps deadlines: auto-pick a word if the builder dawdles, and end the turn when time runs out.
@@ -196,9 +209,9 @@ const host = {
         if (who !== this.me) return; const c = G.cats || []; if (!BANK[a.cat]) return; G.cats = c.includes(a.cat) ? c.filter(x => x !== a.cat) : [...c, a.cat]; break; }
       case "allcats": if (who !== this.me) return; G.cats = []; break;
       case "qper": if (who !== this.me || ![1, 2, 3].includes(a.n)) return; G.qPer = a.n; break;
-      case "resetscores": if (G.game === "scraps") G.sscores = {}; else if (G.game === "boggle") G.bscores = {}; else if (G.game === "fib") { if (isQuib(G)) G.qscores = {}; else G.fscores = {}; } else { G.scores = {}; G.usedQs = {}; } break;
+      case "resetscores": if (G.game === "tongue") G.tscores = {}; else if (G.game === "scraps") G.sscores = {}; else if (G.game === "boggle") G.bscores = {}; else if (G.game === "fib") { if (isQuib(G)) G.qscores = {}; else G.fscores = {}; } else { G.scores = {}; G.usedQs = {}; } break;
       case "game":
-        if (who !== this.me || G.phase !== "lobby" || !["gecko", "boggle", "fib", "scraps"].includes(a.g)) return;
+        if (who !== this.me || G.phase !== "lobby" || !["gecko", "boggle", "fib", "scraps", "tongue"].includes(a.g)) return;
         G.game = a.g;
         if (a.g === "boggle") loadDict().catch(() => {});
         break;
@@ -237,6 +250,25 @@ const host = {
       case "smode": if (who !== this.me || !["pieces", "pen"].includes(a.v)) return; G.sset = { ...SCRAPS_DEFAULTS, ...G.sset, mode: a.v }; break;
       case "srate": if (G.phase !== "splay" || who !== G.s.builder || a.ti !== G.s.ti) return; scrapsHost.rate(G, a.id, a.v); break;
       case "snext": if (G.phase !== "sreveal" || a.ti !== G.s.ti) return; scrapsHost.next(G); break;
+      case "tmode": if (who !== this.me || !["self", "judge"].includes(a.v)) return; G.tset = { ...TONGUE_DEFAULTS, ...G.tset, mode: a.v }; break;
+      case "tlevel": if (who !== this.me || !["easy", "hard"].includes(a.v)) return; G.tset = { ...TONGUE_DEFAULTS, ...G.tset, level: a.v }; break;
+      case "tsecs": if (who !== this.me || !TONGUE_SECS.includes(a.v)) return; G.tset = { ...TONGUE_DEFAULTS, ...G.tset, secs: a.v }; break;
+      case "tturns": if (who !== this.me || !TONGUE_TURNS.includes(a.v)) return; G.tset = { ...TONGUE_DEFAULTS, ...G.tset, turns: a.v }; break;
+      case "tgo": if (G.phase !== "tready" || a.ti !== G.t.ti || (who !== G.t.speaker && who !== this.me)) return; tongueHost.go(G); break;
+      case "tmark": {
+        // a.ci is the card the tapper was looking at, so a double tap (or speaker and judge both tapping) only counts once.
+        const t = G.t;
+        if (G.phase !== "tplay" || a.ti !== t.ti || a.ci !== t.ci || Date.now() < t.startsAt || Date.now() > t.endsAt + 1200) return;
+        const marker = t.mode === "judge" ? t.judge : t.speaker;
+        if (a.r === "skip" ? who !== t.speaker : !["ok", "foul"].includes(a.r) || who !== marker) return;
+        const gs = tongueHost.guessers(G);
+        const by = a.r === "ok" ? (gs.length === 1 ? gs[0] : gs.includes(a.by) ? a.by : null) : null;
+        if (a.r === "ok" && !by) return;
+        tongueHost.mark(G, a.r, by);
+        break;
+      }
+      case "tend": if (G.phase !== "tplay" || who !== this.me || a.ti !== G.t.ti) return; tongueHost.endTurn(G); break;
+      case "tnext": if (G.phase !== "tsum" || a.ti !== G.t.ti) return; tongueHost.next(G); break;
       case "lie": {
         if (G.phase !== "fwrite" || idx < 0) return;
         const r = fibHost.lie(G, who, a.text);
@@ -256,6 +288,12 @@ const host = {
       case "frevealnow": if (G.phase !== "fvote" || who !== this.me || !Object.keys(G.f.votes).length) return; fibHost.reveal(G); break;
       case "fnext": if (G.phase !== "freveal" || a.qi !== G.f.qi) return; fibHost.next(G); break;
       case "start": {
+        if (G.game === "tongue") {
+          if (!["lobby", "tresults"].includes(G.phase) || this.seats.length < tongueMin((G.tset || {}).mode)) return;
+          this.G = { ...DEFAULT_GAME, ...settingsOf(G), ...tongueHost.newGame(G, this.seats.slice()) };
+          this.votes = {};
+          break;
+        }
         if (G.game === "scraps") {
           if (!["lobby", "sresults"].includes(G.phase) || this.seats.length < 2) return;
           this.G = { ...DEFAULT_GAME, ...settingsOf(G), ...scrapsHost.newGame(G, this.seats.slice()) };
@@ -367,13 +405,13 @@ const host = {
         Object.assign(G, { phase: "results", guess: a.word, deltas: { d, why } });
         break;
       }
-      case "tolobby": clearTimeout(this.bTimer); clearTimeout(this.sTimer); G.phase = "lobby"; break;
+      case "tolobby": clearTimeout(this.bTimer); clearTimeout(this.sTimer); clearTimeout(this.tTimer); G.phase = "lobby"; break;
       default: return;
     }
     this.changed();
   },
 
-  changed() { this.save(); this.broadcast(); this.scheduleScraps(); },
+  changed() { this.save(); this.broadcast(); this.scheduleScraps(); this.scheduleTongue(); },
 
   resend() {
     const now = Date.now();
@@ -384,7 +422,7 @@ const host = {
     const now = Date.now();
     for (const [cid, c] of this.clients) if (now - c.seen < 10 * 60000) this.sendTo(cid, { t: "view", view: this.viewFor(c.name) });
     ui.view = this.viewFor(this.me);
-    noteView(ui.view); noteFibView(ui.view); noteScrapsView(ui.view);
+    noteView(ui.view); noteFibView(ui.view); noteScrapsView(ui.view); noteTongueView(ui.view);
     render();
   },
 
@@ -402,6 +440,8 @@ const host = {
     };
     v.fset = { ...FIB_DEFAULTS, ...(G.fset || {}) }; v.fscores = G.fscores || {}; v.qscores = G.qscores || {};
     v.sset = { ...SCRAPS_DEFAULTS, ...(G.sset || {}) }; v.sscores = G.sscores || {};
+    v.tset = { ...TONGUE_DEFAULTS, ...(G.tset || {}) }; v.tscores = G.tscores || {};
+    if (G.t && ["tready", "tplay", "tsum", "tresults"].includes(G.phase)) { v.t = tongueHost.view(G, name); return v; }
     if (G.s && ["spick", "splay", "sreveal", "sresults"].includes(G.phase)) { v.s = scrapsHost.view(G, name, this.sLast[name]); return v; }
     if (G.b && (G.phase === "bplay" || G.phase === "bresults")) { v.b = boggleHost.view(G, name, this.bLast[name]); return v; }
     if (G.f && ["fwrite", "fvote", "freveal", "fresults"].includes(G.phase)) { v.f = fibHost.view(G, name, this.fLast[name]); return v; }
@@ -504,7 +544,7 @@ const guest = {
       // The host resends every 10s; only redraw when something actually changed.
       const json = JSON.stringify(msg.view);
       if (json === this.lastView && ui.status === "live") return;
-      this.lastView = json; ui.view = msg.view; ui.status = "live"; noteView(ui.view); noteFibView(ui.view); noteScrapsView(ui.view); render();
+      this.lastView = json; ui.view = msg.view; ui.status = "live"; noteView(ui.view); noteFibView(ui.view); noteScrapsView(ui.view); noteTongueView(ui.view); render();
     }
     else if (msg.t === "err") { clearTimeout(this.joinTimer); ui.err = msg.msg; ui.status = msg.reload ? "outdated" : "rejected"; render(); }
     else if (msg.t === "rejoin") this.join();
@@ -539,7 +579,7 @@ const views = {
     <section class="card">
       <h1>Who's the <span class="hl">Gecko</span>?</h1>
       <p class="muted">Everyone gets the secret word except one player: the Gecko. Answer questions, sniff out the Gecko, and hope they can't work out the word. Everyone plays on their own phone.</p>
-      <p class="muted small">Also in here: <b>Goggle</b>, a word hunt on a letter grid, <b>Fibber</b>, a bluffing trivia game, and <b>Scraps</b>, Pictionary with cut-out pieces. Pick one in the lobby.</p>
+      <p class="muted small">Also in here: <b>Goggle</b>, a word hunt on a letter grid, <b>Fibber</b>, a bluffing trivia game, <b>Scraps</b>, Pictionary with cut-out pieces, and <b>Tongue Tied</b>, where you describe a word without saying the taboo words. Pick one in the lobby.</p>
     </section>
     <section class="card">
       <label class="label" for="nameIn">Your name</label>
@@ -601,9 +641,9 @@ const views = {
   },
 
   lobby() {
-    const v = ui.view, sel = v.cats, game = v.game, boggle = game === "boggle", fib = game === "fib", scraps = game === "scraps";
-    const sc = scraps ? v.sscores : boggle ? v.bscores : fib ? (v.fset.mode === "quib" ? v.qscores : v.fscores) : v.scores;
-    const anyScore = v.seats.some(s => sc[s]), enough = v.seats.length >= (boggle ? 1 : fib || scraps ? 2 : 3);
+    const v = ui.view, sel = v.cats, game = v.game, boggle = game === "boggle", fib = game === "fib", scraps = game === "scraps", tongue = game === "tongue";
+    const sc = tongue ? v.tscores : scraps ? v.sscores : boggle ? v.bscores : fib ? (v.fset.mode === "quib" ? v.qscores : v.fscores) : v.scores;
+    const anyScore = v.seats.some(s => sc[s]), need = boggle ? 1 : tongue ? tongueMin(v.tset.mode) : fib || scraps ? 2 : 3, enough = v.seats.length >= need;
     const isHost = host.active, lock = isHost ? "" : "disabled", bs = v.bset;
     return head("Lobby") + `
     <section class="card center">
@@ -616,11 +656,11 @@ const views = {
     <section class="card">
       <div class="row-between"><div class="label">Players (${v.seats.length})</div>${anyScore ? `<button class="link" data-act="resetscores">Reset scores</button>` : ""}</div>
       <ul class="players">${v.seats.map(s => `<li class="${s === v.me ? "you" : ""}"><span class="dot ${v.online.includes(s) ? "on" : ""}" title="${v.online.includes(s) ? "Connected" : "Not connected"}"></span><span>${esc(s)}${s === v.me ? ` <small class="muted">(you)</small>` : ""}${s === v.hostName ? ` <small class="muted">host</small>` : ""}</span>${anyScore ? `<em>${sc[s] || 0}</em>` : ""}${isHost && s !== v.hostName ? `<button class="x" data-act="kick" data-v="${esc(s)}" aria-label="Remove ${esc(s)}">×</button>` : ""}</li>`).join("")}</ul>
-      <p class="muted small">${boggle ? "Everyone in? Anyone can shake the board." : fib || scraps ? (enough ? "Everyone in? Anyone can start." : "Waiting for 1 more player.") : enough ? "Everyone in? Anyone can deal the cards." : `Waiting for ${3 - v.seats.length} more ${v.seats.length === 2 ? "player" : "players"}.`}</p>
+      <p class="muted small">${boggle ? "Everyone in? Anyone can shake the board." : fib || scraps || tongue ? (enough ? "Everyone in? Anyone can start." : `Waiting for ${need - v.seats.length} more ${need - v.seats.length === 1 ? "player" : "players"}.`) : enough ? "Everyone in? Anyone can deal the cards." : `Waiting for ${3 - v.seats.length} more ${v.seats.length === 2 ? "player" : "players"}.`}</p>
     </section>
     <section class="card">
       <div class="label">Game</div>
-      <div class="chips">${[["gecko", "Gecko"], ["boggle", "Goggle"], ["fib", "Fibber / Quibber"], ["scraps", "Scraps"]].map(([g, label]) => `<button class="chip" data-act="game" data-v="${g}" ${lock} aria-pressed="${game === g}">${label}</button>`).join("")}</div>
+      <div class="chips">${[["gecko", "Gecko"], ["boggle", "Goggle"], ["fib", "Fibber / Quibber"], ["scraps", "Scraps"], ["tongue", "Tongue Tied"]].map(([g, label]) => `<button class="chip" data-act="game" data-v="${g}" ${lock} aria-pressed="${game === g}">${label}</button>`).join("")}</div>
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the game.</p>`}
     </section>
     ${boggle ? `<section class="card">
@@ -640,7 +680,7 @@ const views = {
       ${isHost ? "" : `<p class="muted small">${esc(v.hostName)} picks the settings.</p>`}
     </section>
     <button class="btn" data-act="start" ${host.waitingForDict ? "disabled" : ""}>${host.waitingForDict ? "Loading the dictionary…" : "Shake the board"}</button>
-    ${boggleRules()}` : fib ? fibLobby(v, lock, isHost) : scraps ? scrapsLobby(v, lock, isHost) : `<section class="card">
+    ${boggleRules()}` : fib ? fibLobby(v, lock, isHost) : tongue ? tongueLobby(v, lock, isHost) : scraps ? scrapsLobby(v, lock, isHost) : `<section class="card">
       <div class="row-between"><div class="label">Categories</div><span class="muted small">${sel.length ? `${sel.length} picked` : "All in the mix"}</span></div>
       <div class="chips"><button class="chip" data-act="allcats" ${lock} aria-pressed="${!sel.length}">Everything</button>${CATS.map(c => `<button class="chip" data-act="cat" data-v="${esc(c)}" ${lock} aria-pressed="${sel.includes(c)}">${esc(c)}</button>`).join("")}</div>
       <p class="muted small">${isHost ? "Pick one or more. Each round draws a word from one of them at random." : `${esc(v.hostName)} picks the categories and questions.`}</p>
@@ -851,15 +891,16 @@ function currentView() {
   return v.phase;
 }
 
-Object.assign(views, boggleViews, fibViews, scrapsViews);
+Object.assign(views, boggleViews, fibViews, scrapsViews, tongueViews);
 
 /* ---------------- Rendering and input ---------------- */
 
 const app = document.getElementById("app");
 function render() {
   const view = currentView(), v = ui.view;
-  const key = view + "|" + (v ? v.gid : "") + "|" + (v ? v.voteRound : "") + "|" + (v && v.f ? v.f.qi : "") + "|" + (v ? scrapsKey(v) : "");
+  const key = view + "|" + (v ? v.gid : "") + "|" + (v ? v.voteRound : "") + "|" + (v && v.f ? v.f.qi : "") + "|" + (v ? scrapsKey(v) : "") + "|" + (v ? tongueKey(v) : "");
   if (view === "fwrite" && key === ui.lastKey && document.getElementById("fIn")) { fibPatch(); return; }
+  if (view === "tplay" && key === ui.lastKey && tongueState() === ui.tShownState && document.getElementById("tmain")) { tonguePatch(); return; }
   if (view === "splay" && key === ui.lastKey && scrapsState() === ui.sShownState && document.getElementById("scv")) { scrapsPatch(); return; }
   // Mid-round Boggle updates only touch the parts that changed, so typing and swiping aren't interrupted.
   if (view === "bplay" && key === ui.lastKey && bState() === ui.bShownState && document.getElementById("bgrid")) { bPatch(); return; }
@@ -974,7 +1015,7 @@ const actions = {
   frevealnow: () => act({ type: "frevealnow" }),
   fnext: () => act({ type: "fnext", qi: ui.view.f.qi })
 };
-Object.assign(actions, scrapsActions);
+Object.assign(actions, scrapsActions, tongueActions);
 
 app.addEventListener("toggle", e => {
   if (e.target.classList.contains("recap-box")) ui.recapOpen = e.target.open;

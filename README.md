@@ -36,3 +36,20 @@ Pictionary with cut-out pieces. Players take turns building a secret word (picke
 While dragging or drawing, the builder's phone only updates the piece or stroke being moved, and sends the picture to everyone else about every 0.7 s (and immediately on release), so watchers see it move in small jumps.
 
 **Words: Easy / Hard.** The words come in three levels: 1 is simple things (pizza, shark), 2 is scenes, people and activities (haunted house, scuba diver), 3 is harder ideas and sayings that still have a picture that gives them away (cold feet = feet frozen in ice, couch potato, photobomb). Pieces uses level 1 (Easy) or 2 (Hard); Pen uses level 2 (Easy) or 3 (Hard), since drawing makes concrete things too easy. Each level has over 200 words (about 260, 250 and 210), and none repeats until its whole list has been used.
+
+## Tongue Tied
+
+A Taboo-style word game. Players take turns talking: the speaker gets a card with a word and 5 taboo words, and has to get the others to say the word without saying it, any part of it, or any taboo word. Cards come one after another until the turn's timer (45 s, 1 min or 1½ min) runs out.
+
+- **Got it:** +1 to the speaker and +1 to whoever guessed it. With more than one guesser, the marker taps the name of whoever got it.
+- **Taboo word:** −1 to the speaker.
+- **Skip:** −1, or free once the card has been up for 20 seconds.
+
+Two ways to keep score:
+
+- **Honor system** (2+ players): the speaker marks their own cards: got it, taboo word, or skip.
+- **With a judge** (3+ players): each turn the next player in order is the judge. They see the card too and tap got it or buzz; the speaker can only skip.
+
+Guessers never receive the card. The speaker's and judge's phones are also sent the next 3 cards, so the card changes the moment they tap instead of waiting on the relay; each tap carries the card number, so a double tap or speaker and judge tapping at once only counts once.
+
+**Words: Easy / Hard.** 536 easy cards (pizza, beach, toothbrush) and 561 hard ones (eclipse, procrastinate, Hogwarts) in `js/taboos.js`; no word is in both. Cards nobody has had come first.

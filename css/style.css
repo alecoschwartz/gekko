@@ -338,3 +338,30 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .sfeed li b { margin-right: 6px; }
 .fopt.sword { text-align: center; font-family: var(--display); font-weight: 400; font-size: 1.5rem; }
 .sfeed li.close { color: var(--hot); }
+
+/* Tongue Tied */
+.tcard { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.tword { font-family: var(--display); font-size: clamp(1.9rem, 9vw, 2.8rem); line-height: 1.05; color: var(--hot); overflow-wrap: anywhere; text-shadow: 0 3px 0 var(--shadow); }
+.tno { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 6px; }
+.tno li { background: var(--shadow); border: 2px solid color-mix(in srgb, var(--spot) 55%, transparent); color: var(--ink); border-radius: 12px; padding: 7px 12px; font-weight: 800; font-size: 1.1rem; }
+.tbtns { display: flex; flex-direction: column; gap: 12px; }
+.tok { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 10px; }
+.tbtn small { font-weight: 600; opacity: .8; font-size: .85rem; margin-left: 4px; }
+.btn.tbtn.yes { background: var(--good); color: #062512; box-shadow: 0 5px 0 #3d9a62; overflow-wrap: anywhere; }
+.btn.tbtn.foul { background: var(--spot); color: #2a0d00; box-shadow: 0 5px 0 var(--spot-deep); }
+.tlog .tmark { font-weight: 800; font-size: 1.2rem; width: 1.2em; text-align: center; }
+.tlog li { justify-content: flex-start; }
+.tlog li > div { flex: 1; }
+.tlog li.ok .tmark { color: var(--good); }
+.tlog li.foul .tmark { color: var(--spot); }
+.tlog li.skip .tmark { color: var(--muted); }
+.tlog em { font-style: normal; font-weight: 800; color: var(--hot); }
+#tmain { display: flex; flex-direction: column; gap: 14px; }
+#tmain .card.spot { padding-block: 14px; }
+.tno { gap: 5px; }
+.tno li { padding: 4px 12px; font-size: 1.05rem; }
+.tbtns { gap: 10px; }
+.btn.tbtn { padding-block: 14px; }
+.trow { display: flex; gap: 10px; }
+.trow > .btn { flex: 1; min-width: 0; padding-inline: 10px; font-size: 1rem; }
+.trow small { display: block; margin: 2px 0 0; }
