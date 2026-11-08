@@ -1,4 +1,4 @@
-// Tongue Tied: a Taboo-style word game. The speaker gets a card with a word and its taboo words (5 on Easy, 8 on Hard), and has to get
+// Tongue Tied: a Taboo-style word game. The speaker gets a card with a word and its taboo words (5 on Easy, 6 on Hard), and has to get
 // the others to say the word without saying any of the taboo words (or the word itself).
 // Two modes: "self" (honor system: the speaker marks their own cards, 2+ players) and
 // "judge" (the next player sees the card too and marks pass or fail, 3+ players).
@@ -10,7 +10,7 @@ const TONGUE_FREE_SKIP = 20000, TONGUE_COUNTDOWN = 3000, TONGUE_AHEAD = 3;
 const tongueCards = level => level === "hard" ? TABOO_HARD : TABOO_EASY;
 const tongueCard = c => { const [w, ...no] = String(c).split("|"); return { w, no }; };
 const tongueMin = mode => mode === "judge" ? 3 : 2;
-const tongueNo = level => level === "hard" ? 8 : 5;
+const tongueNo = level => level === "hard" ? 6 : 5;
 
 /* ---------- Host side ---------- */
 
