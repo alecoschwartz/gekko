@@ -146,7 +146,7 @@ const scrapsHost = {
     const set = { ...SCRAPS_DEFAULTS, ...(G.sset || {}) }, order = shuffle(seats), turns = [];
     for (let t = 0; t < set.turns; t++) turns.push(...order);
     const total = {}; seats.forEach(p => { total[p] = 0; });
-    const g = { gid: "s" + Date.now().toString(36), phase: "spick", players: seats, usedScraps: (G.usedScraps || []).filter(w => SCRAP_WORDS.includes(w)), s: { turns, ti: 0, secs: set.secs, mode: set.mode === "pen" ? "pen" : "pieces", tier: scrapTier(set.mode, set.level), total } };
+    const g = { gid: "s" + Date.now().toString(36), phase: "spick", players: seats, usedScraps: (G.usedScraps || []).filter(w => SCRAP_WORDS.includes(w)), s: { turns, ti: 0, secs: set.secs, mode: set.mode === "pen" ? "pen" : "pieces", tier: scrapTier(set.mode, set.level), hard: set.level === "hard", total } };
     this.startTurn(g);
     return g;
   },
@@ -220,6 +220,7 @@ const scrapsHost = {
     if (G.phase === "splay") {
       v.startsIn = s.startsAt - now; v.endsIn = s.endsAt - now;
       if (me || s.guessed.includes(name)) v.word = s.word;
+      else if (s.hard) v.noHint = true;
       else { v.hint = s.word.replace(/[a-z0-9]/gi, "_"); if (s.hi >= 0) { v.hintIn = s.hintAt - now; v.hi = s.hi; v.hc = s.word[s.hi]; } }
     }
     if (open) { v.word = s.word; v.round = s.round; }
@@ -562,7 +563,7 @@ function scrapsState() {
   return now < c.start ? "count" : now < c.end ? "play" : "over";
 }
 function scrapsHint() {
-  const s = ui.view.s; if (!s.hint) return "";
+  const s = ui.view.s; if (s.noHint) return `<span class="muted small shard">No letter hints</span>`; if (!s.hint) return "";
   let h = s.hint;
   if (s.hi >= 0 && ui.sClock.hint && Date.now() >= ui.sClock.hint) h = h.slice(0, s.hi) + s.hc + h.slice(s.hi + 1);
   return [...h].map(ch => ch === " " ? "&nbsp;&nbsp;" : esc(ch.toUpperCase())).join(" ");
@@ -735,6 +736,6 @@ function scrapsLobby(v, lock, isHost) {
       <li>Players take turns building. The builder secretly picks one of two words.</li>
       <li>${pen ? "Draw it with the pen: pick a color and size, and use the eraser or Undo to fix mistakes." : "Build it out of shapes and stickers: drag to move, use the handles to resize and rotate, tap a piece to recolor or flip it."} No letters. Pinch to zoom out if you need more room.</li>
       <li>Guesses float up over the builder's picture. Tap 👍 if they're getting warmer or 👎 if they're way off.</li>
-      <li>Everyone else watches the picture come together live and types guesses. A letter of the word shows up halfway through.</li>
+      <li>Everyone else watches the picture come together live and types guesses. ${ss.level === "hard" ? "On Hard you don't see how many letters the word has." : "You see a blank for each letter, and one letter shows up halfway through."}</li>
       <li>Guessers get <b>3</b> for first, <b>2</b> for second, <b>1</b> after that. The builder gets <b>1</b> for each person who gets it.</li></ul></section>`;
 }

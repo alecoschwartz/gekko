@@ -294,6 +294,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .sbuild { font-family: var(--display); font-size: 1.6rem; line-height: 1.1; color: var(--hot); overflow-wrap: anywhere; }
 .sbuild.good { color: var(--good); }
 .shint { font-size: 1.35rem; font-weight: 800; letter-spacing: .06em; overflow-wrap: anywhere; }
+.shint .shard { font-family: var(--body); letter-spacing: 0; font-weight: 700; }
 .spal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, 50px); grid-auto-columns: 50px; gap: 7px; overflow-x: auto; padding: 2px 2px 8px; margin-top: -6px; scrollbar-width: thin; }
 .spc { aspect-ratio: 1; background: #fdfbf3; border: 2px solid var(--line); border-radius: 12px; padding: 6px; cursor: pointer; box-shadow: 0 3px 0 var(--shadow); }
 .spc:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--shadow); }
